@@ -1,0 +1,133 @@
+'use client';
+
+import { useState } from 'react';
+import { aprovarUtilizador, rejeitarUtilizador } from '@/lib/admin/verificacoes';
+
+interface VerificacaoCardProps {
+  usuario: {
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string;
+    role: string;
+    created_at: string;
+    documento_tipo?: string;
+    documento_numero?: string;
+  };
+}
+
+export function VerificacaoCard({ usuario }: VerificacaoCardProps) {
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState('');
+  const [sucesso, setSucesso] = useState('');
+  const [motivoRejeicao, setMotivoRejeicao] = useState('');
+  const [mostrarMotivo, setMostrarMotivo] = useState(false);
+
+  const handleAprovar = async () => {
+    try {
+      setLoading(true);
+      setErro('');
+      await aprovarUtilizador(usuario.id);
+      setSucesso('✅ Aprovado!');
+      setTimeout(() => setSucesso(''), 3000);
+    } catch (err) {
+      setErro(`❌ Erro`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejeitar = async () => {
+    if (!motivoRejeicao.trim()) {
+      setErro('❌ Motivo obrigatório');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setErro('');
+      await rejeitarUtilizador(usuario.id, motivoRejeicao);
+      setSucesso('✅ Rejeitado!');
+      setMotivoRejeicao('');
+      setMostrarMotivo(false);
+    } catch (err) {
+      setErro('❌ Erro');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const dataCriacao = new Date(usuario.created_at).toLocaleDateString('pt-AO');
+
+  return (
+    <div className="border border-gray-300 rounded-lg p-6 bg-white">
+      {sucesso && <div className="mb-4 p-3 bg-green-100 rounded text-green-700">{sucesso}</div>}
+      {erro && <div className="mb-4 p-3 bg-red-100 rounded text-red-700">{erro}</div>}
+
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h3 className="font-bold text-lg">{usuario.full_name}</h3>
+          <p className="text-sm text-gray-600">{usuario.email}</p>
+          <p className="text-sm text-gray-600">Tel: {usuario.phone || '-'}</p>
+          <p className="text-sm text-gray-600">Tipo: <span className="font-semibold">{usuario.role}</span></p>
+          <p className="text-xs text-gray-500 mt-2">Registado: {dataCriacao}</p>
+        </div>
+        <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-xs font-bold rounded">PENDENTE</span>
+      </div>
+
+      {usuario.documento_tipo && (
+        <div className="mb-4 p-3 bg-gray-50 rounded text-sm">
+          <p><span className="font-semibold">Documento:</span> {usuario.documento_tipo}</p>
+          <p><span className="font-semibold">Número:</span> {usuario.documento_numero}</p>
+        </div>
+      )}
+
+      <div className="border-t pt-4 mt-4">
+        {!mostrarMotivo ? (
+          <div className="flex gap-2">
+            <button
+              onClick={handleAprovar}
+              disabled={loading}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded font-semibold"
+            >
+              ✅ Aprovar
+            </button>
+            <button
+              onClick={() => setMostrarMotivo(true)}
+              disabled={loading}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded font-semibold"
+            >
+              ❌ Rejeitar
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <textarea
+              placeholder="Motivo da rejeição..."
+              value={motivoRejeicao}
+              onChange={(e) => setMotivoRejeicao(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded text-sm"
+              rows={3}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleRejeitar}
+                disabled={loading || !motivoRejeicao.trim()}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded font-semibold disabled:bg-gray-400"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => { setMostrarMotivo(false); setMotivoRejeicao(''); }}
+                disabled={loading}
+                className="flex-1 bg-gray-400 hover:bg-gray-500 text-white py-2 rounded font-semibold"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
