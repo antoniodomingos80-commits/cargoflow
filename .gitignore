@@ -1,19 +1,35 @@
+# Dependências e artefactos de build
 node_modules/
 .next/
 out/
 build/
-.DS_Store
 
-# Variáveis de ambiente — nunca versionar
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Variáveis e segredos — nunca versionar
 .env
 .env.local
 .env*.local
+*.pem
+*.key
 
-# Tipos gerados
-lib/database.types.ts
-
+# Tipos / artefactos gerados
 *.tsbuildinfo
 next-env.d.ts
+lib/database.types.ts
+plataforma/lib/database.types.ts
+
+# Vercel
 .vercel
 
-.vercel
+# Registos
+npm-debug.log*
+yarn-error.log*
+*.log
+
