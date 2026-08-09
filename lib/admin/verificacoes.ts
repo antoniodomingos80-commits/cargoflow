@@ -4,7 +4,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-export async function listarVerificacoes() {
+export async function listarPendentes() {
   const { data, error } = await supabase
     .from('users')
     .select('id, email, full_name, verification_status')
