@@ -1,11 +1,18 @@
-'use client';
+ 'use client';
 
 import { useEffect, useState } from 'react';
 import { listarPendentes } from '@/lib/admin/verificacoes';
 import { VerificacaoCard } from '@/components/admin/VerificacaoCard';
 
+type Verificacao = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  verification_status: string;
+};
+
 export default function VerificacoesPage() {
-  const [usuarios, setUsuarios] = useState([]);
+  const [usuarios, setUsuarios] = useState<Verificacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
 

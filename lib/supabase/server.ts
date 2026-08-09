@@ -10,20 +10,18 @@ type CookieParaGravar = { name: string; value: string; options: CookieOptions };
  * A sessão vive em cookies httpOnly — nunca acessível a JavaScript no browser.
  */
 export function createClient() {
-  const cookieStore = cookies();
-
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          return cookies().getAll();
         },
         setAll(cookiesToSet: CookieParaGravar[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
+              cookies().set(name, value, options),
             );
           } catch {
             // Server Components não podem escrever cookies. O middleware
