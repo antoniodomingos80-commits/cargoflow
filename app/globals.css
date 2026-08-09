@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 202 79% 20%;
+    --card: 0 0% 100%;
+    --muted: 210 40% 98%;
+    --muted-foreground: 215 16% 47%;
+    --border: 214 32% 91%;
+    --ring: 210 79% 51%;
+  }
+
+  .dark {
+    --background: 202 79% 8%;
+    --foreground: 210 40% 98%;
+    --card: 202 60% 11%;
+    --muted: 202 45% 15%;
+    --muted-foreground: 215 20% 65%;
+    --border: 202 40% 20%;
+  }
+
+  /* Cor de bordo por omissão.
+     Escrito em CSS puro em vez de `@apply border-border` — o @apply cria uma
+     dependência circular frágil entre o CSS e a configuração do Tailwind, e é
+     a causa clássica do erro "border-border class does not exist". */
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Acessibilidade: foco sempre visível (WCAG 2.2) */
+  :focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px hsl(var(--background)),
+      0 0 0 4px #1e88e5;
+  }
+
+  /* Respeitar preferência de movimento reduzido */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Cartão base — listagens de cargas, viagens e painéis */
+  .cf-card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-card transition-shadow;
+  }
+  .cf-card-interactive {
+    @apply cf-card cursor-pointer hover:shadow-card-hover;
+  }
+
+  /* Etiquetas de estado */
+  .cf-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .cf-badge-transit {
+    @apply cf-badge bg-brand-50 text-brand-700;
+  }
+  .cf-badge-delayed {
+    @apply cf-badge bg-accent-50 text-accent-700;
+  }
+  .cf-badge-done {
+    @apply cf-badge bg-green-50 text-green-700;
+  }
+  .cf-badge-idle {
+    @apply cf-badge bg-slate-100 text-slate-600;
+  }
+
+  /* Esqueleto de carregamento */
+  .cf-skeleton {
+    @apply relative overflow-hidden rounded-md bg-slate-100;
+  }
+  .cf-skeleton::after {
+    @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/60 to-transparent;
+    content: '';
+  }
+}

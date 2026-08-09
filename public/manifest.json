@@ -1,0 +1,45 @@
+{
+  "name": "CargoFlow — Logística Inteligente",
+  "short_name": "CargoFlow",
+  "description": "Liga quem tem carga a quem tem camião disponível em Angola.",
+  "start_url": "/painel",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0B3C5D",
+  "lang": "pt-AO",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "travel"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Publicar carga",
+      "short_name": "Nova carga",
+      "url": "/cargas/nova"
+    },
+    {
+      "name": "Procurar carga",
+      "short_name": "Mercado",
+      "url": "/mercado/cargas"
+    },
+    {
+      "name": "Acompanhar entregas",
+      "short_name": "Rastreio",
+      "url": "/rastreio"
+    }
+  ]
+}
