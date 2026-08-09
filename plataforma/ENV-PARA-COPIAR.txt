@@ -1,0 +1,76 @@
+=============================================================================
+CargoFlow — conteúdo para o ficheiro .env.local
+=============================================================================
+
+INSTRUÇÕES
+1. Na pasta CARGOFLOW\plataforma crie um ficheiro chamado exatamente:
+      .env.local
+2. Cole o bloco entre as marcas. Está COMPLETO — não falta preencher nada.
+3. Apague este ficheiro depois de usar.
+
+----------------------------- INÍCIO -----------------------------
+NEXT_PUBLIC_SUPABASE_URL=https://wneehgoeqipgdpprphdc.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduZWVoZ29lcWlwZ2RwcHJwaGRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1ODY3NTEsImV4cCI6MjEwMTE2Mjc1MX0.Uhb1tJGxpFbHcNr-UhtIhXe5WWokMuZjkFlGp1uRuy4
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_NAME=CargoFlow
+NEXT_PUBLIC_MAP_PROVIDER=osm
+------------------------------ FIM -------------------------------
+
+
+PORQUE NÃO É PRECISA A CHAVE service_role
+-----------------------------------------
+A versão inicial usava a chave service_role para criar o perfil do
+utilizador no registo. Foi substituída por um gatilho na base de dados
+(`on_auth_user_created`), que é melhor por três razões:
+
+  · ATÓMICO   — corre na mesma transação que cria a conta de autenticação,
+                por isso é impossível ficar com contas sem perfil
+  · SEGURO    — a aplicação deixa de precisar de uma chave que ignora
+                todas as regras de segurança da base de dados
+  · SIMPLES   — sem código de reversão manual em caso de falha
+
+A chave service_role continua a existir no painel do Supabase, mas não
+pertence a este projeto. Só será necessária no futuro para tarefas
+administrativas em lote (motor de correspondência agendado, por exemplo).
+
+
+COMANDOS PARA ARRANCAR
+----------------------
+cd C:\Users\antonio.figueiredo\Downloads\nevaqua\CARGOFLOW\plataforma
+npm install
+npm run dev
+
+Abrir http://localhost:3000
+
+
+DESLIGAR CONFIRMAÇÃO POR EMAIL (recomendado em desenvolvimento)
+---------------------------------------------------------------
+Evita ter de confirmar cada conta de teste no email:
+
+https://supabase.com/dashboard/project/wneehgoeqipgdpprphdc/auth/providers
+→ Email → desativar "Confirm email" → Save
+
+Voltar a ativar antes de ir para produção.
+
+
+TORNAR-SE ADMINISTRADOR DA PLATAFORMA
+-------------------------------------
+Depois de criar a sua conta, no SQL Editor do Supabase:
+
+  UPDATE users
+  SET role = 'PLATFORM_ADMIN', verification = 'APPROVED'
+  WHERE email = 'o-seu-email@exemplo.com';
+
+Sair e voltar a entrar — a navegação passa a mostrar a administração.
+
+
+DADOS DO PROJETO
+----------------
+Nome:         cargoflow
+Referência:   wneehgoeqipgdpprphdc
+Região:       eu-west-1 (Irlanda) — a mais próxima de Angola
+Plano:        Free (0 USD/mês)
+Painel:       https://supabase.com/dashboard/project/wneehgoeqipgdpprphdc
+
+Base de dados: 27 tabelas · 46 políticas RLS · 22 localidades de Angola
+               + gatilho de criação automática de perfil
