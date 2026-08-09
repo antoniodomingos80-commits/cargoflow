@@ -15,14 +15,14 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return cookies().getAll();
+        async getAll() {
+          const c = await cookies();
+          return c.getAll();
         },
-        setAll(cookiesToSet: CookieParaGravar[]) {
+        async setAll(cookiesToSet: CookieParaGravar[]) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookies().set(name, value, options),
-            );
+            const c = await cookies();
+            cookiesToSet.forEach(({ name, value, options }) => c.set(name, value, options));
           } catch {
             // Server Components não podem escrever cookies. O middleware
             // trata da renovação da sessão — este erro é esperado e inócuo.
