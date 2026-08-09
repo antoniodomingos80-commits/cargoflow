@@ -21,7 +21,7 @@ export default function UtilizadoresPage() {
       const dados = await listarUtilizadores();
       setUsuarios(dados);
     } catch (err) {
-      setErro('Erro ao carregar');
+      setErro('Erro ao carregar utilizadores');
     } finally {
       setLoading(false);
     }
