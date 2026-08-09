@@ -1,0 +1,70 @@
+'use server';
+
+import { createClient } from '@/lib/supabase/server';
+import { revalidatePath } from 'next/cache';
+
+export async function listarUtilizadores() {
+  try {
+    const supabase = createClient();
+    
+    const { data, error } = await supabase
+      .from('users')
+      .select(`
+        id,
+        email,
+        raw_user_meta_data->>'full_name' as full_name,
+        raw_user_meta_data->>'phone' as phone,
+        raw_user_meta_data->>'role' as role,
+        created_at,
+        verification_status,
+        banned
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (erro) {
+    console.error('Erro:', erro);
+    throw erro;
+  }
+}
+
+export async function suspenderUtilizador(userId: string, motivo: string) {
+  try {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('users')
+      .update({
+        banned: true,
+        ban_reason: motivo,
+        banned_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (error) throw error;
+    revalidatePath('/admin/utilizadores');
+    return { sucesso: true };
+  } catch (erro) {
+    throw erro;
+  }
+}
+
+export async function ativarUtilizador(userId: string) {
+  try {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('users')
+      .update({
+        banned: false,
+        ban_reason: null,
+        banned_at: null,
+      })
+      .eq('id', userId);
+
+    if (error) throw error;
+    revalidatePath('/admin/utilizadores');
+    return { sucesso: true };
+  } catch (erro) {
+    throw erro;
+  }
+}
