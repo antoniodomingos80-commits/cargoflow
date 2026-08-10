@@ -1,4 +1,4 @@
- 'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { listarPendentes } from '@/lib/admin/verificacoes';
@@ -16,11 +16,7 @@ export default function VerificacoesPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
 
-  useEffect(() => {
-    carregarPendentes();
-  }, []);
-
-  const carregarPendentes = async () => {
+  async function carregarPendentes() {
     try {
       setLoading(true);
       setErro('');
@@ -31,7 +27,14 @@ export default function VerificacoesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void carregarPendentes();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="p-6 max-w-6xl mx-auto">

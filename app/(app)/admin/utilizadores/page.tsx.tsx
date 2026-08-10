@@ -20,11 +20,7 @@ export default function UtilizadoresPage() {
   const [erro, setErro] = useState('');
   const [filtro, setFiltro] = useState('TODOS');
 
-  useEffect(() => {
-    carregarUtilizadores();
-  }, []);
-
-  const carregarUtilizadores = async () => {
+  async function carregarUtilizadores() {
     try {
       setLoading(true);
       setErro('');
@@ -36,7 +32,14 @@ export default function UtilizadoresPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void carregarUtilizadores();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSuspender = async (id: string) => {
     try {

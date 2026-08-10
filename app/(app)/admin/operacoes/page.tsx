@@ -54,10 +54,7 @@ export default async function PaginaOperacoes() {
           {operacoes.map((o) => {
             // Em trânsito sem posição há mais de 3 horas merece atenção
             const emTransito = ['PICKED_UP', 'IN_TRANSIT'].includes(o.status);
-            const semSinal =
-              emTransito &&
-              (!o.ultima_posicao ||
-                Date.now() - new Date(o.ultima_posicao).getTime() > 3 * 3600 * 1000);
+            const semSinal = emTransito && !o.ultima_posicao;
 
             return (
               <Link

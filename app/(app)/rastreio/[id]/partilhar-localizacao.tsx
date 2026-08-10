@@ -68,7 +68,10 @@ export function PartilharLocalizacao({
   }, [viagemId]);
 
   useEffect(() => {
-    atualizarContagem();
+    const timer = setTimeout(() => {
+      void atualizarContagem();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [atualizarContagem]);
 
   /** Envia o que estiver acumulado */
@@ -101,7 +104,11 @@ export function PartilharLocalizacao({
 
   // Sincronizar assim que a rede volta
   useEffect(() => {
-    if (online && estado === 'ativo') sincronizar();
+    if (!online || estado !== 'ativo') return;
+    const timer = setTimeout(() => {
+      void sincronizar();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [online, estado, sincronizar]);
 
   /** Regista a posição atual na fila local */
