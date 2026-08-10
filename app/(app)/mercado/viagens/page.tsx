@@ -22,20 +22,22 @@ function formatarData(iso: string) {
 export default async function PaginaMercadoViagens({
   searchParams,
 }: {
-  searchParams: { origem?: string; destino?: string; pesoMin?: string };
+  searchParams: Promise<{ origem?: string; destino?: string; pesoMin?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
+  const filtros = await searchParams;
+
   const [viagensRaw, localidadesRaw] = await Promise.all([
-    listarMercadoViagens(searchParams),
+    listarMercadoViagens(filtros),
     listarLocalidades(),
   ]);
   const viagens = viagensRaw as any[];
   const localidades = localidadesRaw as unknown as CFLocation[];
 
   const temFiltros = Boolean(
-    searchParams.origem || searchParams.destino || searchParams.pesoMin,
+    filtros.origem || filtros.destino || filtros.pesoMin,
   );
 
   return (
@@ -56,7 +58,7 @@ export default async function PaginaMercadoViagens({
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <select
             name="origem"
-            defaultValue={searchParams.origem ?? ''}
+            defaultValue={filtros.origem ?? ''}
             aria-label="Origem"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
@@ -68,7 +70,7 @@ export default async function PaginaMercadoViagens({
 
           <select
             name="destino"
-            defaultValue={searchParams.destino ?? ''}
+            defaultValue={filtros.destino ?? ''}
             aria-label="Destino"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
@@ -83,7 +85,7 @@ export default async function PaginaMercadoViagens({
             type="number"
             min={0}
             step={100}
-            defaultValue={searchParams.pesoMin ?? ''}
+            defaultValue={filtros.pesoMin ?? ''}
             placeholder="Espaço mín. (kg)"
             aria-label="Espaço mínimo necessário em quilogramas"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"

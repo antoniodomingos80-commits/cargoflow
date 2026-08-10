@@ -13,12 +13,14 @@ export const metadata = { title: 'Frota' };
 export default async function PaginaFrota({
   searchParams,
 }: {
-  searchParams: { criado?: string };
+  searchParams: Promise<{ criado?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
   if (perfil.user.role === 'MERCHANT') redirect('/painel');
+
+  const filtros = await searchParams;
 
   const veiculos = (await listarVeiculos()) as unknown as Vehicle[];
 
@@ -41,7 +43,7 @@ export default async function PaginaFrota({
         </Link>
       </header>
 
-      {searchParams.criado && (
+      {filtros.criado && (
         <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>

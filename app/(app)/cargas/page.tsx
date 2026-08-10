@@ -22,12 +22,13 @@ const FILTROS = [
 export default async function PaginaMinhasCargas({
   searchParams,
 }: {
-  searchParams: { estado?: string };
+  searchParams: Promise<{ estado?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const estado = searchParams.estado ?? 'todas';
+  const filtros = await searchParams;
+  const estado = filtros.estado ?? 'todas';
   const cargas = (await listarMinhasCargas(estado)) as unknown as Load[];
 
   return (
