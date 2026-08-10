@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
 import { traduzirErro } from '@/lib/erros';
+import { parseAmount } from '@/lib/utils';
 
 const propostaSchema = z.object({
   loadId: z.string().uuid(),
@@ -43,10 +44,12 @@ export async function enviarProposta(
     };
   }
 
+  const amountValue = parseAmount(formData.get('amount')) ?? formData.get('amount');
+
   const parsed = propostaSchema.safeParse({
     loadId: formData.get('loadId'),
     tripId: formData.get('tripId'),
-    amount: formData.get('amount'),
+    amount: amountValue,
     message: formData.get('message') || '',
   });
 
@@ -216,7 +219,7 @@ export async function contrapropor(
   if (!perfil) redirect('/entrar');
 
   const propostaId = formData.get('propostaId') as string;
-  const valor = Number(formData.get('amount'));
+  const valor = parseAmount(formData.get('amount')) ?? Number(formData.get('amount'));
   const mensagem = (formData.get('message') as string) || '';
 
   if (!propostaId || !valor || valor <= 0) {
