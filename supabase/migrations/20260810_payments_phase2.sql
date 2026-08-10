@@ -6,8 +6,10 @@
 CREATE TYPE payment_provider AS ENUM ('STRIPE', 'MULTICAIXA');
 CREATE TYPE payment_status AS ENUM ('PENDING', 'PAID', 'FAILED', 'CANCELLED', 'EXPIRED');
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE payments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   agreement_id UUID NOT NULL REFERENCES agreements(id) ON DELETE CASCADE,
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   provider payment_provider NOT NULL,
