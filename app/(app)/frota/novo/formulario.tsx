@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { criarVeiculo, type EstadoVeiculo } from '@/lib/frota/actions';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ function Botao() {
 }
 
 export function FormularioVeiculo() {
-  const [estado, formAction] = useFormState(criarVeiculo, estadoInicial);
+  const [estado, formAction] = useActionState(criarVeiculo, estadoInicial);
 
   return (
     <form action={formAction} className="space-y-6">

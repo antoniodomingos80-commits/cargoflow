@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
@@ -22,7 +23,7 @@ function BotaoSubmeter() {
 }
 
 function Formulario() {
-  const [estado, formAction] = useFormState(entrar, estadoInicial);
+  const [estado, formAction] = useActionState(entrar, estadoInicial);
   const params = useSearchParams();
   const destino = params.get('destino') ?? '/painel';
 

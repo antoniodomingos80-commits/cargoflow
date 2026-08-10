@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { registar, type EstadoFormulario } from '../actions';
 import { Button } from '@/components/ui/button';
@@ -43,7 +43,7 @@ function BotaoSubmeter() {
 }
 
 export default function PaginaRegisto() {
-  const [estado, formAction] = useFormState(registar, estadoInicial);
+  const [estado, formAction] = useActionState(registar, estadoInicial);
   const [perfil, setPerfil] = useState<string | null>(null);
 
   // Ecrã de confirmação
