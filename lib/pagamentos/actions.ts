@@ -3,7 +3,7 @@
 import { randomInt } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import Stripe from 'stripe';
-import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { createAdminClient, createClient, getSessionProfile } from '@/lib/supabase/server';
 
 type AcordoPagamento = {
   id: string;
@@ -38,6 +38,18 @@ export type EstadoPagamento = {
   referencia?: ReferenciaMulticaixa;
 };
 
+export type PagamentoHistorico = {
+  id: string;
+  agreement_id: string;
+  provider: 'STRIPE' | 'MULTICAIXA';
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+  amount: number;
+  currency: string;
+  external_reference: string | null;
+  created_at: string;
+  paid_at: string | null;
+};
+
 const baseQuery = `
   id,
   agreed_amount,
@@ -47,6 +59,12 @@ const baseQuery = `
   load:loads!inner (id, reference, title, tenant_id),
   trip:trips!inner (id, reference, tenant_id)
 `;
+
+function valorCobranca(acordo: AcordoPagamento) {
+  const fee = Number(acordo.platform_fee || 0);
+  if (fee > 0) return fee;
+  return Number(acordo.agreed_amount || 0);
+}
 
 export async function listarAcordosParaPagamento() {
   const perfil = await getSessionProfile();
@@ -61,18 +79,26 @@ export async function listarAcordosParaPagamento() {
 
   if (error || !data) return [];
 
-  const acordos = (data as unknown as AcordoPagamento[]).filter((a) => {
+  return (data as unknown as AcordoPagamento[]).filter((a) => {
     if (!a.load || !a.trip) return false;
     return a.load.tenant_id === perfil.tenant.id || a.trip.tenant_id === perfil.tenant.id;
   });
-
-  return acordos;
 }
 
-function valorCobranca(acordo: AcordoPagamento) {
-  const fee = Number(acordo.platform_fee || 0);
-  if (fee > 0) return fee;
-  return Number(acordo.agreed_amount || 0);
+export async function listarHistoricoPagamentos(): Promise<PagamentoHistorico[]> {
+  const perfil = await getSessionProfile();
+  if (!perfil) return [];
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('payments')
+    .select('id, agreement_id, provider, status, amount, currency, external_reference, created_at, paid_at')
+    .eq('tenant_id', perfil.tenant.id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error || !data) return [];
+  return data as PagamentoHistorico[];
 }
 
 async function obterAcordoAutorizado(agreementId: string) {
@@ -96,30 +122,65 @@ async function obterAcordoAutorizado(agreementId: string) {
   return { perfil, acordo };
 }
 
+async function inserirPagamento(pagamento: {
+  agreementId: string;
+  tenantId: string;
+  provider: 'STRIPE' | 'MULTICAIXA';
+  amount: number;
+  currency: string;
+  status?: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+  externalReference?: string | null;
+  meta?: Record<string, unknown>;
+  expiresAt?: string | null;
+}) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('payments')
+    .insert({
+      agreement_id: pagamento.agreementId,
+      tenant_id: pagamento.tenantId,
+      provider: pagamento.provider,
+      status: pagamento.status ?? 'PENDING',
+      amount: pagamento.amount,
+      currency: pagamento.currency,
+      external_reference: pagamento.externalReference ?? null,
+      metadata: pagamento.meta ?? {},
+      expires_at: pagamento.expiresAt ?? null,
+    })
+    .select('id')
+    .single();
+
+  return data?.id ?? null;
+}
+
 export async function iniciarPagamentoStripe(formData: FormData) {
   const agreementId = String(formData.get('agreementId') || '');
-  if (!agreementId) {
-    redirect('/pagamentos?erro=acordo_invalido');
-  }
+  if (!agreementId) redirect('/pagamentos?erro=acordo_invalido');
 
   const auth = await obterAcordoAutorizado(agreementId);
-  if (!auth) {
-    redirect('/pagamentos?erro=sem_permissao');
-  }
+  if (!auth) redirect('/pagamentos?erro=sem_permissao');
 
   const { perfil, acordo } = auth;
   const amount = valorCobranca(acordo);
-  if (amount <= 0) {
-    redirect('/pagamentos?erro=valor_invalido');
-  }
+  if (amount <= 0) redirect('/pagamentos?erro=valor_invalido');
 
   const secretKey = process.env.STRIPE_SECRET_KEY;
-  if (!secretKey) {
-    redirect('/pagamentos?erro=stripe_nao_configurado');
-  }
+  if (!secretKey) redirect('/pagamentos?erro=stripe_nao_configurado');
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const stripe = new Stripe(secretKey!);
+  const stripe = new Stripe(secretKey);
+
+  const pagamentoId = await inserirPagamento({
+    agreementId: acordo.id,
+    tenantId: perfil.tenant.id,
+    provider: 'STRIPE',
+    amount,
+    currency: acordo.currency || 'AOA',
+    meta: {
+      load_reference: acordo.load?.reference ?? '',
+      trip_reference: acordo.trip?.reference ?? '',
+    },
+  });
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
@@ -132,6 +193,7 @@ export async function iniciarPagamentoStripe(formData: FormData) {
       tenant_name: perfil.tenant.name,
       load_reference: acordo.load?.reference ?? '',
       trip_reference: acordo.trip?.reference ?? '',
+      payment_id: pagamentoId ?? '',
       provider: 'stripe',
     },
     line_items: [
@@ -149,11 +211,8 @@ export async function iniciarPagamentoStripe(formData: FormData) {
     ],
   });
 
-  if (!session.url) {
-    redirect('/pagamentos?erro=stripe_sem_url');
-  }
-
-  redirect(session.url!);
+  if (!session.url) redirect('/pagamentos?erro=stripe_sem_url');
+  redirect(session.url);
 }
 
 export async function gerarReferenciaMulticaixa(
@@ -161,25 +220,29 @@ export async function gerarReferenciaMulticaixa(
   formData: FormData,
 ): Promise<EstadoPagamento> {
   const agreementId = String(formData.get('agreementId') || '');
-  if (!agreementId) {
-    return { erro: 'Acordo inválido.' };
-  }
+  if (!agreementId) return { erro: 'Acordo inválido.' };
 
   const auth = await obterAcordoAutorizado(agreementId);
-  if (!auth) {
-    return { erro: 'Sem permissão para este acordo.' };
-  }
+  if (!auth) return { erro: 'Sem permissão para este acordo.' };
 
-  const { acordo } = auth;
+  const { perfil, acordo } = auth;
   const valor = valorCobranca(acordo);
-
-  if (valor <= 0) {
-    return { erro: 'Este acordo não tem valor para cobrança.' };
-  }
+  if (valor <= 0) return { erro: 'Este acordo não tem valor para cobrança.' };
 
   const entidade = process.env.MULTICAIXA_ENTITY || '11333';
   const referencia = String(randomInt(100000000, 999999999));
   const expira = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+
+  await inserirPagamento({
+    agreementId: acordo.id,
+    tenantId: perfil.tenant.id,
+    provider: 'MULTICAIXA',
+    amount: Number(valor.toFixed(2)),
+    currency: acordo.currency || 'AOA',
+    externalReference: referencia,
+    expiresAt: expira,
+    meta: { entidade },
+  });
 
   return {
     sucesso: 'Referência gerada. Pode pagar no Multicaixa Express ou ATM.',
@@ -191,4 +254,34 @@ export async function gerarReferenciaMulticaixa(
       expiraEm: expira,
     },
   };
+}
+
+export async function atualizarPagamentoInterno(params: {
+  paymentId?: string | null;
+  provider: 'STRIPE' | 'MULTICAIXA';
+  externalId?: string | null;
+  externalReference?: string | null;
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+  rawPayload?: Record<string, unknown>;
+}) {
+  const admin = createAdminClient();
+
+  let q = admin
+    .from('payments')
+    .update({
+      status: params.status,
+      external_id: params.externalId ?? null,
+      metadata: params.rawPayload ?? {},
+      paid_at: params.status === 'PAID' ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('provider', params.provider);
+
+  if (params.paymentId) q = q.eq('id', params.paymentId);
+  else if (params.externalReference) q = q.eq('external_reference', params.externalReference);
+  else if (params.externalId) q = q.eq('external_id', params.externalId);
+  else return;
+
+  const { error } = await q;
+  if (error) console.error('Erro ao atualizar pagamento:', error.message);
 }

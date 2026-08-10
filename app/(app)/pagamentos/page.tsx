@@ -1,6 +1,11 @@
 import Link from 'next/link';
-import { listarAcordosParaPagamento } from '@/lib/pagamentos/actions';
+import {
+  listarAcordosParaPagamento,
+  listarHistoricoPagamentos,
+  type PagamentoHistorico,
+} from '@/lib/pagamentos/actions';
 import { EmptyState } from '@/components/ui/empty-state';
+import { formatCurrency } from '@/lib/utils';
 import { Wallet, BadgeCheck } from 'lucide-react';
 import { CartaoPagamento } from './cartao-pagamento';
 
@@ -29,7 +34,10 @@ export default async function PaginaPagamentos({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const acordos = await listarAcordosParaPagamento();
+  const [acordos, historico] = await Promise.all([
+    listarAcordosParaPagamento(),
+    listarHistoricoPagamentos(),
+  ]);
   const sp = await searchParams;
 
   const erro = mensagemErro(sp.erro);
@@ -109,6 +117,71 @@ export default async function PaginaPagamentos({
         </Link>
         .
       </p>
+
+      <HistoricoPagamentos historico={historico} />
     </div>
+  );
+}
+
+function badgeStatus(status: PagamentoHistorico['status']) {
+  if (status === 'PAID') return 'cf-badge-done';
+  if (status === 'FAILED' || status === 'CANCELLED') return 'cf-badge-idle';
+  if (status === 'EXPIRED') return 'cf-badge-delayed';
+  return 'cf-badge-transit';
+}
+
+function statusPt(status: PagamentoHistorico['status']) {
+  if (status === 'PAID') return 'Pago';
+  if (status === 'FAILED') return 'Falhou';
+  if (status === 'CANCELLED') return 'Cancelado';
+  if (status === 'EXPIRED') return 'Expirado';
+  return 'Pendente';
+}
+
+function HistoricoPagamentos({ historico }: { historico: PagamentoHistorico[] }) {
+  return (
+    <section className="cf-card overflow-hidden">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h2 className="font-semibold text-navy-600">Histórico de pagamentos</h2>
+        <p className="text-sm text-slate-500">Últimos movimentos e estado de reconciliação.</p>
+      </div>
+
+      {historico.length === 0 ? (
+        <p className="px-5 py-6 text-sm text-slate-500">Ainda não há pagamentos registados.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-5 py-3">Data</th>
+                <th className="px-5 py-3">Provedor</th>
+                <th className="px-5 py-3">Valor</th>
+                <th className="px-5 py-3">Estado</th>
+                <th className="px-5 py-3">Referência</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {historico.map((p) => (
+                <tr key={p.id}>
+                  <td className="px-5 py-3 text-slate-600">
+                    {new Date(p.created_at).toLocaleString('pt-AO')}
+                  </td>
+                  <td className="px-5 py-3 font-medium text-navy-600">{p.provider}</td>
+                  <td className="px-5 py-3 text-slate-600">
+                    {formatCurrency(Number(p.amount || 0), p.currency || 'AOA')}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={badgeStatus(p.status)}>{statusPt(p.status)}</span>
+                  </td>
+                  <td className="px-5 py-3 font-mono text-xs text-slate-500">
+                    {p.external_reference || '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
