@@ -11,6 +11,8 @@ import {
   BarChart3, Settings, LogOut, ShieldAlert, MessageSquare, Wallet,
 } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Navegação por perfil.
  *
