@@ -31,21 +31,23 @@ function formatarData(iso: string) {
   });
 }
 
-export default async function PaginaRastreio({ params }: { params: { id: string } }) {
+export default async function PaginaRastreio({ params }: { params: Promise<{ id: string }> }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const carga = (await obterCarga(params.id)) as unknown as Load | null;
+  const routeParams = await params;
+
+  const carga = (await obterCarga(routeParams.id)) as unknown as Load | null;
   if (!carga) notFound();
 
-  const estado = await obterEstadoRastreio(params.id);
+  const estado = await obterEstadoRastreio(routeParams.id);
   if (!estado) notFound();
 
   const [percurso, eventos, prova, avaliacoes] = await Promise.all([
     estado.trip_id ? obterPercurso(estado.trip_id) : Promise.resolve([]),
-    obterEventos(params.id),
-    obterProvaEntrega(params.id),
-    obterAvaliacoes(params.id),
+    obterEventos(routeParams.id),
+    obterProvaEntrega(routeParams.id),
+    obterAvaliacoes(routeParams.id),
   ]);
 
   // Os buckets são privados — as imagens precisam de URLs assinados.

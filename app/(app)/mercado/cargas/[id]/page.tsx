@@ -31,12 +31,14 @@ function formatarData(iso: string | null) {
 export default async function PaginaCargaMercado({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const carga = (await obterCarga(params.id)) as unknown as Load | null;
+  const routeParams = await params;
+
+  const carga = (await obterCarga(routeParams.id)) as unknown as Load | null;
   if (!carga) notFound();
 
   // Se for a própria carga, enviar para a vista de dono

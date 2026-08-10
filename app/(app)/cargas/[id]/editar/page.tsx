@@ -12,17 +12,19 @@ const ESTADOS_EDITAVEIS = ['DRAFT', 'PUBLISHED', 'NEGOTIATING'];
 export default async function PaginaEditarCarga({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const carga = (await obterCarga(params.id)) as any;
+  const routeParams = await params;
+
+  const carga = (await obterCarga(routeParams.id)) as any;
   if (!carga) notFound();
   if (carga.tenant_id !== perfil.tenant.id) notFound();
 
   if (!ESTADOS_EDITAVEIS.includes(carga.status)) {
-    redirect(`/cargas/${params.id}`);
+    redirect(`/cargas/${routeParams.id}`);
   }
 
   const localidades = await listarLocalidades();
@@ -48,7 +50,7 @@ export default async function PaginaEditarCarga({
   return (
     <div className="mx-auto max-w-2xl">
       <Link
-        href={`/cargas/${params.id}`}
+        href={`/cargas/${routeParams.id}`}
         className="mb-6 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-navy-600"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />

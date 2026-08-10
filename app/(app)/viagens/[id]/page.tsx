@@ -35,13 +35,15 @@ export default async function PaginaDetalheViagem({
   params,
   searchParams,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
   searchParams: Promise<{ criada?: string; guardada?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const viagem = (await obterViagem(params.id)) as any;
+  const routeParams = await params;
+
+  const viagem = (await obterViagem(routeParams.id)) as any;
   if (!viagem) notFound();
 
   const filtros = await searchParams;

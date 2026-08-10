@@ -11,24 +11,26 @@ export default async function PaginaConversa({
   params,
   searchParams,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
   searchParams: Promise<{ acordo?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
+  const routeParams = await params;
+
   const filtros = await searchParams;
 
   const [conversas, mensagens] = await Promise.all([
     listarConversas(),
-    listarMensagens(params.id),
+    listarMensagens(routeParams.id),
   ]);
 
-  const conversa = conversas.find((c) => c.conversation_id === params.id);
+  const conversa = conversas.find((c) => c.conversation_id === routeParams.id);
   if (!conversa) notFound();
 
   // Marcar como lida ao abrir
-  await marcarLida(params.id);
+  await marcarLida(routeParams.id);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -91,7 +93,7 @@ export default async function PaginaConversa({
       </header>
 
       <Conversa
-        conversaId={params.id}
+        conversaId={routeParams.id}
         utilizadorId={perfil.user.id}
         mensagensIniciais={mensagens}
       />

@@ -31,13 +31,15 @@ export default async function PaginaDetalheCarga({
   params,
   searchParams,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
   searchParams: Promise<{ criada?: string; guardada?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const carga = (await obterCarga(params.id)) as unknown as Load | null;
+  const routeParams = await params;
+
+  const carga = (await obterCarga(routeParams.id)) as unknown as Load | null;
   if (!carga) notFound();
 
   const filtros = await searchParams;
