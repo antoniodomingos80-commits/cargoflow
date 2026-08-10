@@ -26,6 +26,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/mensagens', rotulo: 'Mensagens', icone: MessageSquare },
     { href: '/rastreio', rotulo: 'Acompanhar', icone: MapPin },
     { href: '/documentos', rotulo: 'Documentos', icone: FileText },
+    { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
   CARRIER: [
     { href: '/painel', rotulo: 'Painel', icone: LayoutDashboard },
@@ -34,6 +35,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/mensagens', rotulo: 'Mensagens', icone: MessageSquare },
     { href: '/frota', rotulo: 'Frota', icone: Truck },
     { href: '/documentos', rotulo: 'Documentos', icone: FileText },
+    { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
   COMPANY_ADMIN: [
     { href: '/painel', rotulo: 'Painel', icone: LayoutDashboard },
@@ -44,6 +46,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/motoristas', rotulo: 'Motoristas', icone: Users },
     { href: '/relatorios', rotulo: 'Relatórios', icone: BarChart3 },
     { href: '/documentos', rotulo: 'Documentos', icone: FileText },
+    { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
   COMPANY_STAFF: [
     { href: '/painel', rotulo: 'Painel', icone: LayoutDashboard },
@@ -51,6 +54,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/mercado/cargas', rotulo: 'Procurar carga', icone: Package },
     { href: '/mensagens', rotulo: 'Mensagens', icone: MessageSquare },
     { href: '/rastreio', rotulo: 'Entregas', icone: MapPin },
+    { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
   PLATFORM_ADMIN: [
     { href: '/painel', rotulo: 'Visão geral', icone: LayoutDashboard },
