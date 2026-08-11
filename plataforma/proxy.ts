@@ -1,4 +1,4 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+﻿import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 type CookieParaGravar = { name: string; value: string; options: CookieOptions };
@@ -21,7 +21,7 @@ type CookieParaGravar = { name: string; value: string; options: CookieOptions };
 // o que aconteceu — melhor do que um salto silencioso para o login.
 const ROTAS_PUBLICAS = ['/', '/entrar', '/registo', '/recuperar', '/redefinir', '/auth'];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
