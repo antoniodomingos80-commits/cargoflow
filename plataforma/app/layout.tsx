@@ -9,6 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL((process.env.NEXT_PUBLIC_APP_URL || 'https://cargoflow.co.ao').replace(/\/$/, '')),
   title: {
     default: 'CargoFlow — A logística inteligente começa aqui',
     template: '%s · CargoFlow',
@@ -28,14 +29,16 @@ export const metadata: Metadata = {
     description:
       'Ligamos quem tem carga a quem tem espaço no camião. Menos viagens em vazio, mais rendimento por quilómetro.',
   },
+  alternates: {
+    canonical: '/',
+  },
   manifest: '/manifest.json',
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
     apple: [{ url: '/icon.svg' }],
   },
-  // Estamos a construir; não queremos indexação antes do lançamento.
-  // Trocar para index:true quando a plataforma abrir ao público.
-  robots: { index: false, follow: false },
+  // Indexação aberta para lançamento público.
+  robots: { index: true, follow: true },
 };
 
 export const viewport: Viewport = {

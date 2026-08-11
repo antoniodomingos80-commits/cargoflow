@@ -1,14 +1,15 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
-import { listarPendentes } from '@/lib/admin/verificacoes';
+import { aprovarUtilizador, listarPendentes, rejeitarUtilizador } from '@/lib/admin/verificacoes';
 import { VerificacaoCard } from '@/components/admin/VerificacaoCard';
 
 type Verificacao = {
   id: string;
   email: string;
   full_name: string | null;
-  verification_status: string;
+  verification: string;
+  verification_status?: string;
 };
 
 export default function VerificacoesPage() {
@@ -25,9 +26,13 @@ export default function VerificacoesPage() {
       setLoading(true);
       setErro('');
       const dados = await listarPendentes();
-      setUsuarios(dados);
+      const usuariosNormalizados = (dados as Array<Verificacao & { verification_status?: string }>).map((usuario) => ({
+        ...usuario,
+        verification: usuario.verification ?? usuario.verification_status ?? 'PENDING',
+      }));
+      setUsuarios(usuariosNormalizados);
     } catch (err) {
-      setErro('Erro ao carregar');
+      setErro('Erro ao carregar dados de verificação.');
     } finally {
       setLoading(false);
     }
@@ -69,8 +74,22 @@ export default function VerificacoesPage() {
             <VerificacaoCard
               key={usuario.id}
               verificacao={usuario}
-              onAprovar={() => {}}
-              onRejeitar={() => {}}
+              onAprovar={async (id) => {
+                const resultado: { success: boolean; error?: string } = await aprovarUtilizador(id);
+                if (!resultado.success) {
+                  setErro(resultado.error ?? 'Não foi possível aprovar o utilizador.');
+                  return;
+                }
+                await carregarPendentes();
+              }}
+              onRejeitar={async (id, motivo) => {
+                const resultado: { success: boolean; error?: string } = await rejeitarUtilizador(id, motivo);
+                if (!resultado.success) {
+                  setErro(resultado.error ?? 'Não foi possível rejeitar o utilizador.');
+                  return;
+                }
+                await carregarPendentes();
+              }}
             />
           ))}
         </div>

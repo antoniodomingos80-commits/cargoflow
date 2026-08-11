@@ -86,30 +86,18 @@ export async function enviarProposta(
     };
   }
 
-  // Travão de gralha: um zero a mais num campo numérico não dá erro nenhum,
-  // e numa negociação a sério custa dinheiro ou credibilidade. Se o valor for
-  // dez vezes o orçamento indicado, exige-se confirmação explícita.
+  // A primeira palavra deve ser do transportador. O orçamento do comerciante
+  // pode servir como referência para contexto, mas não deve ditar o preço
+  // final nem forçar uma primeira proposta artificialmente baixa.
   const { data: carga } = await supabase
     .from('loads')
     .select('budget_amount')
     .eq('id', d.loadId)
     .single();
 
-  const orcamento = carga?.budget_amount ? Number(carga.budget_amount) : null;
-  const confirmado = formData.get('confirmarValor') === 'sim';
-
-  if (orcamento && !confirmado && d.amount > orcamento * 10) {
-    return {
-      erros: {
-        amount: [
-          `Isto são ${Math.round(d.amount / orcamento)} vezes o orçamento indicado ` +
-            `(${orcamento.toLocaleString('pt-AO')} Kz). Se for mesmo o valor que quer, ` +
-            'submeta outra vez para confirmar.',
-        ],
-      },
-      pedirConfirmacao: true,
-    };
-  }
+  // Mantém-se apenas para contexto, sem bloquear a proposta por estar acima
+  // do orçamento indicado pelo comerciante.
+  void carga;
 
   // Evitar propostas duplicadas pendentes para a mesma carga/viagem
   const { data: existente } = await supabase
@@ -142,8 +130,24 @@ export async function enviarProposta(
   }
 
   revalidatePath(`/cargas/${d.loadId}`);
-  revalidatePath('/viagens');
   return { sucesso: true };
+}
+
+export async function rejeitarProposta(propostaId: string, motivo?: string) {
+  const perfil = await getSessionProfile();
+  if (!perfil) redirect('/entrar');
+
+  const supabase = createClient();
+  const { error } = await supabase.rpc('cf_rejeitar_proposta', {
+    p_offer_id: propostaId,
+    p_motivo: motivo || null,
+  });
+
+  if (error) {
+    throw new Error(error.message ?? 'Não foi possível rejeitar a proposta.');
+  }
+
+  revalidatePath('/cargas');
 }
 
 // =============================================================================
@@ -176,21 +180,6 @@ export async function aceitarProposta(propostaId: string) {
 // Rejeitar / retirar
 // =============================================================================
 
-export async function rejeitarProposta(propostaId: string) {
-  const perfil = await getSessionProfile();
-  if (!perfil) redirect('/entrar');
-
-  const supabase = createClient();
-  const { error } = await supabase
-    .from('offers')
-    .update({ status: 'REJECTED', responded_at: new Date().toISOString() })
-    .eq('id', propostaId)
-    .eq('status', 'PENDING');
-
-  if (error) throw new Error('Não foi possível rejeitar a proposta.');
-  revalidatePath('/cargas');
-}
-
 export async function retirarProposta(propostaId: string) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
@@ -212,11 +201,17 @@ export async function retirarProposta(propostaId: string) {
 // =============================================================================
 
 export async function contrapropor(
-  _anterior: EstadoProposta,
+ _anterior: EstadoProposta,
   formData: FormData,
 ): Promise<EstadoProposta> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+
+  if (perfil.user.verification !== 'APPROVED') {
+    return {
+      erro: 'Só pode responder com contraproposta quando a conta estiver verificada.',
+    };
+  }
 
   const propostaId = formData.get('propostaId') as string;
   const valor = parseAmount(formData.get('amount')) ?? Number(formData.get('amount'));
@@ -227,40 +222,23 @@ export async function contrapropor(
   }
 
   const supabase = createClient();
-  const { data: original } = await supabase
-    .from('offers')
-    .select('id, load_id, trip_id, status')
-    .eq('id', propostaId)
-    .single();
-
-  if (!original || original.status !== 'PENDING') {
-    return { erro: 'Esta proposta já não pode ser respondida.' };
-  }
-
-  // Marcar a original como contraproposta e criar a nova, encadeada.
-  // Manter a cadeia permite mostrar o histórico da negociação.
-  await supabase
-    .from('offers')
-    .update({ status: 'COUNTERED', responded_at: new Date().toISOString() })
-    .eq('id', propostaId);
-
-  const { error } = await supabase.from('offers').insert({
-    load_id: original.load_id,
-    trip_id: original.trip_id,
-    offered_by: perfil.user.id,
-    amount: valor,
-    currency: perfil.tenant.default_currency,
-    message: mensagem || null,
-    status: 'PENDING',
-    parent_offer_id: propostaId,
-    expires_at: new Date(Date.now() + 72 * 3600 * 1000).toISOString(),
+  const { error } = await supabase.rpc('cf_contrapropor_proposta', {
+    p_offer_id: propostaId,
+    p_novo_valor: valor,
+    p_mensagem: mensagem || null,
   });
 
-  if (error) return { erro: 'Não foi possível enviar a contraproposta.' };
+  if (error) {
+    return { erro: error.message ?? 'Não foi possível enviar a contraproposta.' };
+  }
 
-  revalidatePath(`/cargas/${original.load_id}`);
+  revalidatePath('/cargas');
+  revalidatePath('/viagens');
+  revalidatePath('/mensagens');
   return { sucesso: true };
 }
+
+
 
 // =============================================================================
 // Consultas

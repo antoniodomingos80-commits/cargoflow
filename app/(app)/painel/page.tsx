@@ -1,11 +1,11 @@
-import { getSessionProfile } from '@/lib/supabase/server';
-import { indicadoresPlataforma, verificacoesPendentes } from '@/lib/admin/actions';
+import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { indicadoresPlataforma, resumoAdministrativo, verificacoesPendentes } from '@/lib/admin/actions';
 import { ROLE_LABELS } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import {
-  Package, Truck, MapPin, ShieldAlert, ArrowRight, CheckCircle2,
+  Package, Truck, MapPin, ShieldAlert, ArrowRight, CheckCircle2, ShieldCheck, PackageCheck, WalletCards,
 } from 'lucide-react';
 
 export const metadata = { title: 'Painel' };
@@ -32,6 +32,56 @@ export default async function PaginaPainel() {
   const porVerificar = user.verification === 'PENDING';
   const ehTransportador = user.role === 'CARRIER' || user.role === 'COMPANY_ADMIN';
 
+  const supabase = createClient();
+  const [cargasRes, viagensRes, veiculosRes, documentosRes] = await Promise.all([
+    supabase.from('loads').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id),
+    supabase.from('trips').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id),
+    supabase
+      .from('vehicles')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenant.id)
+      .eq('is_active', true),
+    supabase.from('documents').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id),
+  ]);
+
+  const cargasCount = cargasRes.count ?? 0;
+  const viagensCount = viagensRes.count ?? 0;
+  const veiculosCount = veiculosRes.count ?? 0;
+  const documentosCount = documentosRes.count ?? 0;
+  const primeiraOperacaoPublicada = cargasCount > 0 || viagensCount > 0;
+
+  const checklistMvp = [
+    {
+      titulo: 'Perfil básico preenchido',
+      texto: 'Nome, contacto e dados da empresa prontos para negociação.',
+      feito: Boolean(user.phone || tenant.tax_id),
+    },
+    {
+      titulo: 'Verificação concluída',
+      texto: 'A conta já pode operar com confiança na plataforma.',
+      feito: user.verification === 'APPROVED',
+    },
+    {
+      titulo: 'Primeira operação publicada',
+      texto: 'Publique a primeira carga ou viagem para fechar o ciclo.',
+      feito: primeiraOperacaoPublicada,
+    },
+  ];
+  const progressoChecklist = Math.round(
+    (checklistMvp.filter((item) => item.feito).length / checklistMvp.length) * 100,
+  );
+  const recomendacao = ehTransportador
+    ? {
+        titulo: 'Publicar a sua primeira viagem',
+        texto: 'Anuncie o espaço disponível no camião e comece a receber propostas de carga.',
+        accao: { href: '/viagens/nova', rotulo: 'Publicar viagem' },
+      }
+    : {
+        titulo: 'Publicar a primeira carga',
+        texto: 'Indique origem, destino, peso e datas para começar a encontrar transportadores.',
+        accao: { href: '/cargas/nova', rotulo: 'Publicar carga' },
+      };
+
   const passos = [
     {
       titulo: 'Conta criada',
@@ -52,13 +102,13 @@ export default async function PaginaPainel() {
       ? {
           titulo: 'Registar veículo',
           texto: 'Adicione o camião para poder publicar viagens.',
-          feito: false,
+          feito: veiculosCount > 0,
           accao: { href: '/frota', rotulo: 'Adicionar veículo' },
         }
       : {
           titulo: 'Publicar a primeira carga',
           texto: 'Indique origem, destino e peso — leva menos de um minuto.',
-          feito: false,
+          feito: cargasCount > 0,
           accao: { href: '/cargas/nova', rotulo: 'Publicar carga' },
         },
   ];
@@ -94,8 +144,114 @@ export default async function PaginaPainel() {
         </div>
       )}
 
+      <section className="cf-card border-brand-200 bg-brand-50/60 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
+              Ação recomendada
+            </p>
+            <h2 className="mt-1 font-semibold text-navy-600">{recomendacao.titulo}</h2>
+            <p className="mt-1 text-sm leading-relaxed text-slate-600">{recomendacao.texto}</p>
+          </div>
+          <Link href={recomendacao.accao.href} className="inline-flex">
+            <Button size="sm" variant="accent">
+              {recomendacao.accao.rotulo}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </Link>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <div className="cf-card p-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h3 className="mt-4 font-semibold text-navy-600">Confiança e verificação</h3>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            Suba os documentos e acelere a publicação de cargas e viagens.
+          </p>
+          <Link href="/documentos" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:underline">
+            Ver documentos
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        </div>
+
+        <div className="cf-card p-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-50 text-accent-600">
+            <PackageCheck className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h3 className="mt-4 font-semibold text-navy-600">Provas de entrega</h3>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            Registe fotos, assinatura e notas para fechar cada operação com rastreio claro.
+          </p>
+          <Link href="/entregas" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:underline">
+            Ver entregas
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        </div>
+
+        <div className="cf-card p-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <WalletCards className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h3 className="mt-4 font-semibold text-navy-600">Pagamentos protegidos</h3>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            Centralize o estado das transações e mantenha o controlo sobre cada pagamento.
+          </p>
+          <Link href="/pagamentos" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:underline">
+            Ver pagamentos
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        </div>
+      </section>
+
       <section className="cf-card p-6">
-        <h2 className="font-semibold text-navy-600">Primeiros passos</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-navy-600">Checklist de lançamento</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {progressoChecklist}% completo · os próximos passos estão já visíveis.
+            </p>
+          </div>
+          <div className="rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-600">
+            {progressoChecklist}%
+          </div>
+        </div>
+
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full rounded-full bg-brand-500 transition-all"
+            style={{ width: `${progressoChecklist}%` }}
+          />
+        </div>
+
+        <ol className="mt-5 space-y-3">
+          {checklistMvp.map((item) => (
+            <li key={item.titulo} className="flex items-start gap-3 rounded-xl border border-slate-200 p-3">
+              <span
+                className={
+                  item.feito
+                    ? 'mt-0.5 text-green-500'
+                    : 'mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-slate-300'
+                }
+                aria-hidden="true"
+              >
+                {item.feito && <CheckCircle2 className="h-5 w-5" />}
+              </span>
+              <div>
+                <p className={item.feito ? 'text-sm font-semibold text-slate-400 line-through' : 'text-sm font-semibold text-navy-600'}>
+                  {item.titulo}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">{item.texto}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="cf-card p-6">
+        <h2 className="font-semibold text-navy-600">Próximos passos</h2>
         <ol className="mt-5 space-y-4">
           {passos.map((passo) => (
             <li key={passo.titulo} className="flex items-start gap-4">
@@ -180,9 +336,10 @@ export default async function PaginaPainel() {
  * conta por aprovar é um utilizador bloqueado que não pode usar o produto.
  */
 async function PainelAdministrador({ nome }: { nome: string }) {
-  const [ind, pendentes] = await Promise.all([
+  const [ind, pendentes, resumo] = await Promise.all([
     indicadoresPlataforma(),
     verificacoesPendentes(),
+    resumoAdministrativo(),
   ]);
 
   return (
@@ -216,6 +373,17 @@ async function PainelAdministrador({ nome }: { nome: string }) {
 
       {ind && (
         <>
+          <section>
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">
+              Ações urgentes
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Indicador rotulo="KYC pendente" valor={resumo.verificacoes_pendentes} />
+              <Indicador rotulo="Pagamentos pendentes" valor={resumo.pagamentos_pendentes} />
+              <Indicador rotulo="Documentos por revisar" valor={resumo.documentos_pendentes} />
+            </div>
+          </section>
+
           <section>
             <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">
               Atividade

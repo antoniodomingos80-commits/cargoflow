@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { createAdminClient, createClient, getSessionProfile } from '@/lib/supabase/server';
 
 export interface VerificacaoPendente {
   user_id: string;
@@ -35,6 +35,12 @@ export interface IndicadoresPlataforma {
   avaliacao_media: number | null;
 }
 
+export interface ResumoAdministrativo {
+  verificacoes_pendentes: number;
+  pagamentos_pendentes: number;
+  documentos_pendentes: number;
+}
+
 /** Barreira aplicada em todas as páginas de administração */
 async function exigirAdmin() {
   const perfil = await getSessionProfile();
@@ -43,20 +49,57 @@ async function exigirAdmin() {
   return perfil;
 }
 
+function getAdminSupabase() {
+  try {
+    return createAdminClient();
+  } catch {
+    return createClient();
+  }
+}
+
 export async function verificacoesPendentes(): Promise<VerificacaoPendente[]> {
   await exigirAdmin();
-  const supabase = createClient();
-  const { data, error } = await supabase.rpc('cf_admin_verificacoes_pendentes');
-  if (error) {
-    console.error('Erro nas verificações pendentes:', error.message);
+  const supabase = getAdminSupabase();
+
+  try {
+    const { data, error } = await supabase.rpc('cf_admin_verificacoes_pendentes');
+    if (!error && Array.isArray(data)) {
+      return (data ?? []) as VerificacaoPendente[];
+    }
+  } catch (erro) {
+    console.warn('RPC cf_admin_verificacoes_pendentes indisponível; a usar fallback.', erro);
+  }
+
+  const { data: utilizadores, error: erroUtilizadores } = await supabase
+    .from('users')
+    .select('id, full_name, email, phone, role, created_at, tenant_id, tenant:tenants(id, name, type, tax_id), vehicles:vehicles(id), documents:documents(id)')
+    .eq('verification', 'PENDING')
+    .order('created_at', { ascending: false });
+
+  if (erroUtilizadores) {
+    console.error('Erro ao carregar verificações pendentes com fallback:', erroUtilizadores.message);
     return [];
   }
-  return (data ?? []) as VerificacaoPendente[];
+
+  return (utilizadores ?? []).map((utilizador: any) => ({
+    user_id: utilizador.id,
+    full_name: utilizador.full_name,
+    email: utilizador.email,
+    phone: utilizador.phone,
+    role: utilizador.role,
+    criado_em: utilizador.created_at,
+    tenant_id: utilizador.tenant_id,
+    tenant_nome: utilizador.tenant?.name ?? 'Sem nome',
+    tenant_tipo: utilizador.tenant?.type ?? 'INDIVIDUAL',
+    tax_id: utilizador.tenant?.tax_id ?? null,
+    n_documentos: Array.isArray(utilizador.documents) ? utilizador.documents.length : 0,
+    n_veiculos: Array.isArray(utilizador.vehicles) ? utilizador.vehicles.length : 0,
+  })) as VerificacaoPendente[];
 }
 
 export async function indicadoresPlataforma(): Promise<IndicadoresPlataforma | null> {
   await exigirAdmin();
-  const supabase = createClient();
+  const supabase = getAdminSupabase();
   const { data } = await supabase.rpc('cf_admin_indicadores');
   const linha = Array.isArray(data) ? data[0] : data;
   return (linha ?? null) as IndicadoresPlataforma | null;
@@ -64,9 +107,35 @@ export async function indicadoresPlataforma(): Promise<IndicadoresPlataforma | n
 
 export async function operacoesPlataforma() {
   await exigirAdmin();
-  const supabase = createClient();
+  const supabase = getAdminSupabase();
   const { data } = await supabase.rpc('cf_admin_operacoes');
   return (data ?? []) as any[];
+}
+
+export async function resumoAdministrativo(): Promise<ResumoAdministrativo> {
+  await exigirAdmin();
+  const supabase = getAdminSupabase();
+
+  const [verificacoes, pagamentos, documentos] = await Promise.all([
+    supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('verification', 'PENDING'),
+    supabase
+      .from('payments')
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['PENDING', 'EXPIRED']),
+    supabase
+      .from('documents')
+      .select('*', { count: 'exact', head: true })
+      .eq('verification', 'PENDING'),
+  ]);
+
+  return {
+    verificacoes_pendentes: verificacoes.count ?? 0,
+    pagamentos_pendentes: pagamentos.count ?? 0,
+    documentos_pendentes: documentos.count ?? 0,
+  };
 }
 
 export async function decidirVerificacao(
@@ -75,13 +144,66 @@ export async function decidirVerificacao(
   motivo?: string,
 ) {
   await exigirAdmin();
-  const supabase = createClient();
-  const { error } = await supabase.rpc('cf_admin_decidir_verificacao', {
-    p_user_id: utilizadorId,
-    p_aprovar: aprovar,
-    p_motivo: motivo ?? null,
-  });
-  if (error) throw new Error(error.message);
+  const supabase = getAdminSupabase();
+
+  const { data: utilizador, error: erroUser } = await supabase
+    .from('users')
+    .select('tenant_id')
+    .eq('id', utilizadorId)
+    .single();
+
+  if (erroUser || !utilizador) {
+    throw new Error(erroUser?.message ?? 'Utilizador não encontrado.');
+  }
+
+  const status = aprovar ? 'APPROVED' : 'REJECTED';
+
+  try {
+    const { error: erroRpc } = await supabase.rpc('cf_admin_decidir_verificacao', {
+      p_user_id: utilizadorId,
+      p_aprovar: aprovar,
+      p_motivo: motivo ?? null,
+    });
+
+    if (!erroRpc) {
+      revalidatePath('/admin/verificacoes');
+      revalidatePath('/painel');
+      return;
+    }
+  } catch {
+    // Fallback abaixo.
+  }
+
+  const { error: erroUsers } = await supabase
+    .from('users')
+    .update({
+      verification: status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', utilizadorId);
+
+  if (erroUsers) throw new Error(erroUsers.message);
+
+  const { error: erroTenant } = await supabase
+    .from('tenants')
+    .update({
+      verification: status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', utilizador.tenant_id);
+
+  if (erroTenant) throw new Error(erroTenant.message);
+
+  const { error: erroDocumentos } = await supabase
+    .from('documents')
+    .update({
+      verification: status,
+      rejection_reason: aprovar ? null : (motivo ?? 'Rejeitado pela equipa CargoFlow'),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('tenant_id', utilizador.tenant_id);
+
+  if (erroDocumentos) throw new Error(erroDocumentos.message);
 
   revalidatePath('/admin/verificacoes');
   revalidatePath('/painel');
@@ -90,7 +212,7 @@ export async function decidirVerificacao(
 /** Documentos carregados por uma empresa, para o administrador rever */
 export async function documentosDoTenant(tenantId: string) {
   await exigirAdmin();
-  const supabase = createClient();
+  const supabase = getAdminSupabase();
   const { data } = await supabase
     .from('documents')
     .select('id, type, file_url, document_number, issued_at, expires_at, verification')

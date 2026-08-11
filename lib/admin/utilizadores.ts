@@ -10,7 +10,7 @@ const supabase = createSupabaseClient(
 export async function listarUtilizadores() {
   const { data, error } = await supabase
     .from('users')
-    .select('id, email, full_name, phone, verification_status, banned, created_at, role')
+    .select('id, email, full_name, phone, verification, banned, created_at, role')
     .order('created_at', { ascending: false });
 
   if (error) throw error;

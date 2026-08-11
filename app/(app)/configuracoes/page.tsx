@@ -30,6 +30,15 @@ export default async function PaginaConfiguracoes() {
         </p>
       </div>
 
+      <section className="cf-card border-brand-200 bg-brand-50/60 p-5">
+        <h2 className="font-semibold text-navy-600">Checklist de início</h2>
+        <ul className="mt-3 space-y-2 text-sm text-slate-600">
+          <li>• Preencha o nome e o telefone para que os parceiros saibam com quem estão a tratar.</li>
+          <li>• Defina a moeda padrão para evitar confusões nas propostas e pagamentos.</li>
+          <li>• Atualize os dados da empresa quando estiver pronto para operar com mais formalidade.</li>
+        </ul>
+      </section>
+
       <FormularioConfiguracoes
         perfil={{
           fullName: perfil.user.full_name,

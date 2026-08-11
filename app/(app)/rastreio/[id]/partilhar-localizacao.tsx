@@ -42,6 +42,7 @@ export function PartilharLocalizacao({
   const [pendentes, setPendentes] = useState(0);
   const [ultimoEnvio, setUltimoEnvio] = useState<Date | null>(null);
   const [aSincronizar, setASincronizar] = useState(false);
+  const [confirmado, setConfirmado] = useState(false);
 
   const watchIdRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -166,6 +167,7 @@ export function PartilharLocalizacao({
     timerRef.current = setInterval(registarPosicao, intervalo);
 
     setEstado('ativo');
+    setConfirmado(true);
   }
 
   function parar() {
@@ -179,6 +181,7 @@ export function PartilharLocalizacao({
     }
     sincronizar();
     setEstado('parado');
+    setConfirmado(false);
   }
 
   // Limpeza ao desmontar
@@ -240,6 +243,12 @@ export function PartilharLocalizacao({
           )}
         </span>
       </div>
+
+      {confirmado && (
+        <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          Rastreamento em tempo real ativado. A sua posição já está a ser partilhada.
+        </div>
+      )}
 
       {erro && (
         <div

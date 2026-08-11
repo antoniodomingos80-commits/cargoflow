@@ -32,6 +32,16 @@ export interface Avaliacao {
   sou_eu: boolean;
 }
 
+export interface ResumoFatura {
+  id: string;
+  numero: string;
+  valor: number;
+  comissao: number;
+  total: number;
+  moeda: string;
+  estado: 'EMITIDA';
+}
+
 export async function obterProvaEntrega(cargaId: string): Promise<ProvaEntrega | null> {
   const supabase = createClient();
   const { data } = await supabase.rpc('cf_prova_entrega', { p_load_id: cargaId });
@@ -43,6 +53,93 @@ export async function obterAvaliacoes(cargaId: string): Promise<Avaliacao[]> {
   const supabase = createClient();
   const { data } = await supabase.rpc('cf_avaliacoes_da_carga', { p_load_id: cargaId });
   return (data ?? []) as Avaliacao[];
+}
+
+export async function obterResumoFatura(cargaId: string): Promise<ResumoFatura | null> {
+  const perfil = await getSessionProfile();
+  if (!perfil) redirect('/entrar');
+
+  const supabase = createClient();
+  const { data: acordo } = await supabase
+    .from('agreements')
+    .select('id, agreed_amount, currency, platform_fee')
+    .eq('load_id', cargaId)
+    .maybeSingle();
+
+  if (!acordo) return null;
+
+  const valor = Number(acordo.agreed_amount ?? 0);
+  const comissao = Number(acordo.platform_fee ?? 0);
+  const numero = `INV-${new Date().getFullYear()}-${String(acordo.id).slice(0, 8).toUpperCase()}`;
+
+  return {
+    id: acordo.id,
+    numero,
+    valor,
+    comissao,
+    total: valor + comissao,
+    moeda: acordo.currency ?? 'AOA',
+    estado: 'EMITIDA',
+  };
+}
+
+export async function criarBackhaul(cargaId: string, tripId?: string | null) {
+  const perfil = await getSessionProfile();
+  if (!perfil) redirect('/entrar');
+
+  const supabase = createClient();
+
+  const { data: carga } = await supabase
+    .from('loads')
+    .select('id, tenant_id, assigned_trip_id')
+    .eq('id', cargaId)
+    .single();
+
+  if (!carga || carga.tenant_id !== perfil.tenant.id) {
+    throw new Error('Carga não encontrada ou sem acesso para reutilizar.');
+  }
+
+  const viagemId = tripId ?? carga.assigned_trip_id;
+  if (!viagemId) throw new Error('Não há uma viagem associada para reutilizar.');
+
+  const { data: viagem } = await supabase
+    .from('trips')
+    .select('id, vehicle_id, driver_id, origin_id, destination_id, available_weight_kg, available_volume_m3, minimum_price, currency, departure_at, estimated_arrival')
+    .eq('id', viagemId)
+    .single();
+
+  if (!viagem) throw new Error('Viagem original não encontrada.');
+
+  const partida = viagem.estimated_arrival ?? viagem.departure_at ?? new Date().toISOString();
+  const chegada = new Date(new Date(partida).getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: novaViagem, error } = await supabase
+    .from('trips')
+    .insert({
+      tenant_id: perfil.tenant.id,
+      created_by: perfil.user.id,
+      vehicle_id: viagem.vehicle_id,
+      driver_id: viagem.driver_id,
+      origin_id: viagem.destination_id,
+      destination_id: viagem.origin_id,
+      available_weight_kg: viagem.available_weight_kg,
+      available_volume_m3: viagem.available_volume_m3,
+      departure_at: partida,
+      estimated_arrival: chegada,
+      minimum_price: viagem.minimum_price,
+      currency: viagem.currency ?? perfil.tenant.default_currency,
+      status: 'PUBLISHED',
+      is_return_trip: true,
+    })
+    .select('id')
+    .single();
+
+  if (error || !novaViagem) throw new Error('Não foi possível publicar a viagem de retorno.');
+
+  revalidatePath('/viagens');
+  revalidatePath('/mercado/viagens');
+  revalidatePath(`/viagens/${novaViagem.id}`);
+  redirect(`/viagens/${novaViagem.id}`);
 }
 
 /**

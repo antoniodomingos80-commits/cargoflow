@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import {
+  estadoKycPagamentos,
   listarAcordosParaPagamento,
   listarHistoricoPagamentos,
   type PagamentoHistorico,
@@ -25,6 +26,7 @@ function mensagemErro(codigo?: string) {
     valor_invalido: 'O valor do pagamento é inválido.',
     stripe_nao_configurado: 'Stripe não configurado no ambiente.',
     stripe_sem_url: 'Não foi possível iniciar o checkout Stripe.',
+    kyc_pendente: 'Complete a verificação da conta para desbloquear pagamentos.',
   };
   return mapa[codigo] ?? 'Não foi possível iniciar o pagamento.';
 }
@@ -34,9 +36,10 @@ export default async function PaginaPagamentos({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const [acordos, historico] = await Promise.all([
+  const [acordos, historico, estadoKyc] = await Promise.all([
     listarAcordosParaPagamento(),
     listarHistoricoPagamentos(),
+    estadoKycPagamentos(),
   ]);
   const sp = await searchParams;
 
@@ -81,6 +84,12 @@ export default async function PaginaPagamentos({
         </div>
       </div>
 
+      {estadoKyc.bloqueado && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {estadoKyc.mensagem}
+        </div>
+      )}
+
       {acordos.length === 0 ? (
         <EmptyState
           icone={Wallet}
@@ -104,6 +113,7 @@ export default async function PaginaPagamentos({
                 referenciaViagem={a.trip?.reference || '-'}
                 valor={valor}
                 moeda={a.currency || 'AOA'}
+                bloqueado={estadoKyc.bloqueado}
               />
             );
           })}
@@ -138,6 +148,19 @@ function statusPt(status: PagamentoHistorico['status']) {
   return 'Pendente';
 }
 
+function extrairReferencia(p: PagamentoHistorico, chave: 'load_reference' | 'trip_reference') {
+  const valor = p.metadata?.[chave];
+  return typeof valor === 'string' && valor.trim().length > 0 ? valor : '-';
+}
+
+function extrairLiquidacao(p: PagamentoHistorico) {
+  if (p.paid_at) return `Pago em ${new Date(p.paid_at).toLocaleString('pt-AO')}`;
+  if (p.expires_at && p.status === 'PENDING') {
+    return `Expira em ${new Date(p.expires_at).toLocaleString('pt-AO')}`;
+  }
+  return '—';
+}
+
 function HistoricoPagamentos({ historico }: { historico: PagamentoHistorico[] }) {
   return (
     <section className="cf-card overflow-hidden">
@@ -154,10 +177,12 @@ function HistoricoPagamentos({ historico }: { historico: PagamentoHistorico[] })
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-5 py-3">Data</th>
+                <th className="px-5 py-3">Acordo</th>
                 <th className="px-5 py-3">Provedor</th>
                 <th className="px-5 py-3">Valor</th>
                 <th className="px-5 py-3">Estado</th>
                 <th className="px-5 py-3">Referência</th>
+                <th className="px-5 py-3">Liquidação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -165,6 +190,13 @@ function HistoricoPagamentos({ historico }: { historico: PagamentoHistorico[] })
                 <tr key={p.id}>
                   <td className="px-5 py-3 text-slate-600">
                     {new Date(p.created_at).toLocaleString('pt-AO')}
+                  </td>
+                  <td className="px-5 py-3 text-slate-600">
+                    <p className="font-mono text-xs text-slate-500">{p.agreement_id.slice(0, 8)}</p>
+                    <p className="mt-0.5 text-xs">
+                      Carga {extrairReferencia(p, 'load_reference')} · Viagem{' '}
+                      {extrairReferencia(p, 'trip_reference')}
+                    </p>
                   </td>
                   <td className="px-5 py-3 font-medium text-navy-600">{p.provider}</td>
                   <td className="px-5 py-3 text-slate-600">
@@ -176,6 +208,7 @@ function HistoricoPagamentos({ historico }: { historico: PagamentoHistorico[] })
                   <td className="px-5 py-3 font-mono text-xs text-slate-500">
                     {p.external_reference || '-'}
                   </td>
+                  <td className="px-5 py-3 text-xs text-slate-500">{extrairLiquidacao(p)}</td>
                 </tr>
               ))}
             </tbody>

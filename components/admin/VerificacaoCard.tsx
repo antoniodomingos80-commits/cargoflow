@@ -4,7 +4,7 @@ type Verificacao = {
   id: string;
   email: string;
   full_name: string | null;
-  verification_status: string;
+  verification: string;
 };
 
 export function VerificacaoCard({
@@ -19,8 +19,9 @@ export function VerificacaoCard({
   onRejeitar?: (id: string, motivo: string) => void;
 }) {
   const v = verificacao ?? usuario!;
-  const handleAprovar = () => onAprovar ? onAprovar(v.id) : undefined;
-  const handleRejeitar = () => onRejeitar ? onRejeitar(v.id, 'Documentação incompleta') : undefined;
+  const handleAprovar = () => (onAprovar ? onAprovar(v.id) : undefined);
+  const handleRejeitar = () =>
+    onRejeitar ? onRejeitar(v.id, 'Documentação incompleta') : undefined;
 
   return (
     <div className="bg-white border rounded-lg p-4 shadow">

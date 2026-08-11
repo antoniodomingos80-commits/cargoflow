@@ -1,5 +1,6 @@
 import { aceitarProposta, rejeitarProposta } from '@/lib/propostas/actions';
 import { Pontuacao } from '@/components/correspondencias/pontuacao';
+import { Contraproposta } from '@/components/propostas/contraproposta';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatWeight } from '@/lib/utils';
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/types';
@@ -106,6 +107,16 @@ export function ListaPropostas({
       <div className="space-y-3">
         {propostas.map((p) => {
           const pendente = p.status === 'PENDING';
+          const valorEhCompetitivo = pendente && p.amount !== null && p.amount <= 2000;
+          const temBoaCompatibilidade = p.match_score !== null && Number(p.match_score) >= 70;
+          const temBoaReputacao = p.proposer_rating_count > 0 && p.proposer_rating !== null && Number(p.proposer_rating) >= 4.5;
+          const sinais = [
+            valorEhCompetitivo ? 'Valor competitivo' : null,
+            temBoaCompatibilidade ? 'Boa compatibilidade' : null,
+            p.is_return_trip ? 'Retorno' : null,
+            temBoaReputacao ? 'Reputação forte' : null,
+            p.has_refrigeration ? 'Refrigerado' : null,
+          ].filter(Boolean) as string[];
           return (
             <article
               key={p.offer_id}
@@ -193,6 +204,19 @@ export function ListaPropostas({
                     )}
                   </dl>
 
+                  {sinais.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {sinais.map((sinal) => (
+                        <span
+                          key={sinal}
+                          className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600"
+                        >
+                          {sinal}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   {p.message && (
                     <blockquote className="mt-3 rounded-lg bg-slate-50 px-4 py-3 text-sm italic leading-relaxed text-slate-600">
                       “{p.message}”
@@ -226,6 +250,7 @@ export function ListaPropostas({
                           Aceitar
                         </Button>
                       </form>
+                      <Contraproposta propostaId={p.offer_id} moeda={p.currency} valorAtual={Number(p.amount)} />
                       <form
                         action={async () => {
                           'use server';

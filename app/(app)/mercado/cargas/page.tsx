@@ -30,6 +30,9 @@ export default async function PaginaMercadoCargas({
   const temFiltros = Boolean(
     filtros.origem || filtros.destino || filtros.tipo || filtros.pesoMax,
   );
+  const cargasUrgentes = cargas.filter((carga) => carga.is_urgent).length;
+  const cargasRetorno = cargas.filter((carga) => carga.is_return_trip === true).length;
+  const cargasRefrigeradas = cargas.filter((carga) => carga.requires_refrigeration).length;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -112,6 +115,17 @@ export default async function PaginaMercadoCargas({
           )}
         </div>
       </form>
+
+      {cargas.length > 0 && (
+        <div className="rounded-2xl border border-brand-100 bg-brand-50/70 p-4">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-brand-700">
+            <span className="font-semibold">Oportunidades destacadas</span>
+            {cargasUrgentes > 0 && <span className="rounded-full bg-white px-2.5 py-1">{cargasUrgentes} urgentes</span>}
+            {cargasRetorno > 0 && <span className="rounded-full bg-white px-2.5 py-1">{cargasRetorno} com retorno</span>}
+            {cargasRefrigeradas > 0 && <span className="rounded-full bg-white px-2.5 py-1">{cargasRefrigeradas} refrigeradas</span>}
+          </div>
+        </div>
+      )}
 
       <p className="text-sm text-slate-500">
         {cargas.length === 0

@@ -17,6 +17,7 @@ type Props = {
   referenciaViagem: string;
   valor: number;
   moeda: string;
+  bloqueado?: boolean;
 };
 
 export function CartaoPagamento({
@@ -26,6 +27,7 @@ export function CartaoPagamento({
   referenciaViagem,
   valor,
   moeda,
+  bloqueado = false,
 }: Props) {
   const [estadoMcx, formMcx] = useActionState(gerarReferenciaMulticaixa, estadoInicial);
 
@@ -47,7 +49,8 @@ export function CartaoPagamento({
           <input type="hidden" name="agreementId" value={agreementId} />
           <button
             type="submit"
-            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
+            disabled={bloqueado}
+            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             Pagar com Stripe
           </button>
@@ -57,7 +60,8 @@ export function CartaoPagamento({
           <input type="hidden" name="agreementId" value={agreementId} />
           <button
             type="submit"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-navy-600 transition-colors hover:bg-slate-50"
+            disabled={bloqueado}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-navy-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
           >
             Gerar referência Multicaixa
           </button>

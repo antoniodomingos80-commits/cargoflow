@@ -37,6 +37,28 @@ export async function POST(request: Request) {
     });
   }
 
+  if (event.type === 'checkout.session.async_payment_succeeded') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    await atualizarPagamentoInterno({
+      provider: 'STRIPE',
+      paymentId: session.metadata?.payment_id || null,
+      externalId: session.id,
+      status: 'PAID',
+      rawPayload: session as unknown as Record<string, unknown>,
+    });
+  }
+
+  if (event.type === 'checkout.session.async_payment_failed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    await atualizarPagamentoInterno({
+      provider: 'STRIPE',
+      paymentId: session.metadata?.payment_id || null,
+      externalId: session.id,
+      status: 'FAILED',
+      rawPayload: session as unknown as Record<string, unknown>,
+    });
+  }
+
   if (event.type === 'checkout.session.expired') {
     const session = event.data.object as Stripe.Checkout.Session;
     await atualizarPagamentoInterno({
@@ -52,6 +74,7 @@ export async function POST(request: Request) {
     const intent = event.data.object as Stripe.PaymentIntent;
     await atualizarPagamentoInterno({
       provider: 'STRIPE',
+      paymentId: intent.metadata?.payment_id || null,
       externalId: intent.id,
       status: 'FAILED',
       rawPayload: intent as unknown as Record<string, unknown>,

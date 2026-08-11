@@ -1,10 +1,10 @@
-import { confirmarRececao } from '@/lib/entrega/actions';
+import { confirmarRececao, criarBackhaul, obterResumoFatura } from '@/lib/entrega/actions';
 import { Avaliar, Estrelas } from './avaliar';
 import { FormularioEntrega } from './formulario-entrega';
 import { Button } from '@/components/ui/button';
 import type { ProvaEntrega, Avaliacao } from '@/lib/entrega/actions';
 import {
-  PackageCheck, AlertTriangle, MapPin, PenLine, CheckCircle2, Camera,
+  PackageCheck, AlertTriangle, MapPin, PenLine, CheckCircle2, Camera, ReceiptText,
 } from 'lucide-react';
 
 function formatarData(iso: string) {
@@ -20,7 +20,7 @@ function formatarData(iso: string) {
  * O que se mostra depende de quem está a ver e do estado da carga, para que
  * cada parte veja apenas a ação que lhe compete a seguir.
  */
-export function PainelEntrega({
+export async function PainelEntrega({
   cargaId,
   estadoCarga,
   ehTransportador,
@@ -30,6 +30,7 @@ export function PainelEntrega({
   urlsFotos,
   urlAssinatura,
   contraparte,
+  tripId,
 }: {
   cargaId: string;
   estadoCarga: string;
@@ -40,12 +41,15 @@ export function PainelEntrega({
   urlsFotos: Record<string, string>;
   urlAssinatura: string | null;
   contraparte: string;
+  tripId?: string | null;
 }) {
   const jaAvaliei = avaliacoes.some((a) => a.sou_eu);
   const podeRegistarEntrega =
     ehTransportador && ['PICKED_UP', 'IN_TRANSIT'].includes(estadoCarga);
   const podeConfirmar = ehDono && estadoCarga === 'DELIVERED';
   const podeAvaliar = estadoCarga === 'CONFIRMED' && !jaAvaliei;
+  const resumoFatura = await obterResumoFatura(cargaId);
+  const podeMostrarBackhaul = ehTransportador && !!tripId && ['CONFIRMED', 'DELIVERED'].includes(estadoCarga);
 
   return (
     <>
@@ -183,6 +187,69 @@ export function PainelEntrega({
               </Button>
             </form>
           )}
+        </section>
+      )}
+
+      {resumoFatura && (
+        <section className="cf-card p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="flex items-center gap-2 font-semibold text-navy-600">
+                <ReceiptText className="h-4 w-4 text-brand-500" aria-hidden="true" />
+                Fatura simples emitida
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Gerada automaticamente após a confirmação da receção.
+              </p>
+            </div>
+            <span className="cf-badge-done">{resumoFatura.estado}</span>
+          </div>
+
+          <div className="mt-5 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-600 sm:grid-cols-2">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-400">Número</p>
+              <p className="mt-1 font-medium text-navy-600">{resumoFatura.numero}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-400">Valor</p>
+              <p className="mt-1 font-medium text-navy-600">
+                {resumoFatura.valor.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} {resumoFatura.moeda}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-400">Comissão</p>
+              <p className="mt-1 font-medium text-navy-600">
+                {resumoFatura.comissao.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} {resumoFatura.moeda}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
+              <p className="mt-1 font-semibold text-brand-600">
+                {resumoFatura.total.toLocaleString('pt-AO', { minimumFractionDigits: 2 })} {resumoFatura.moeda}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {podeMostrarBackhaul && (
+        <section className="cf-card p-6">
+          <h2 className="font-semibold text-navy-600">Reaproveitar esta viagem</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Publique automaticamente uma viagem de retorno para o mesmo percurso, com a rota invertida.
+          </p>
+          <form
+            action={async () => {
+              'use server';
+              await criarBackhaul(cargaId, tripId);
+            }}
+            className="mt-4"
+          >
+            <Button type="submit">
+              <PackageCheck className="h-4 w-4" aria-hidden="true" />
+              Publicar backhaul
+            </Button>
+          </form>
         </section>
       )}
 

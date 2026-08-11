@@ -3,8 +3,11 @@ import { atualizarPagamentoInterno } from '@/lib/pagamentos/actions';
 
 type CallbackBody = {
   referencia?: string;
+  reference?: string;
   estado?: string;
+  status?: string;
   transacaoId?: string;
+  transactionId?: string;
 };
 
 function mapEstado(estado?: string): 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED' {
@@ -25,7 +28,7 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as CallbackBody;
-  const referencia = body.referencia;
+  const referencia = String(body.referencia || body.reference || '').trim();
 
   if (!referencia) {
     return NextResponse.json({ error: 'Referência em falta.' }, { status: 400 });
@@ -34,8 +37,8 @@ export async function POST(request: Request) {
   await atualizarPagamentoInterno({
     provider: 'MULTICAIXA',
     externalReference: referencia,
-    externalId: body.transacaoId || null,
-    status: mapEstado(body.estado),
+    externalId: String(body.transacaoId || body.transactionId || '').trim() || null,
+    status: mapEstado(body.estado || body.status),
     rawPayload: body as unknown as Record<string, unknown>,
   });
 

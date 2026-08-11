@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { enviarProposta, type EstadoProposta } from '@/lib/propostas/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,7 +43,7 @@ export function DialogoProposta({
   viagemSugerida?: string;
 }) {
   const [aberto, setAberto] = useState(false);
-  const [estado, formAction] = useFormState(enviarProposta, estadoInicial);
+  const [estado, formAction] = useActionState(enviarProposta, estadoInicial);
 
   if (estado.sucesso) {
     return (
@@ -128,18 +128,24 @@ export function DialogoProposta({
           )}
         </div>
 
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          A primeira proposta deve refletir os custos reais da rota (combustível, distância,
+          veículo, tempo e condições da carga). O orçamento do comerciante serve apenas como
+          referência, não como regra.
+        </div>
+
         <Input
           label="O seu preço (Kz)"
           name="amount"
           type="number"
-          min={1}
+          min={1000}
           step={1000}
           required
-          defaultValue={orcamento ?? undefined}
+          placeholder="Ex.: 420000"
           hint={
             orcamento
-              ? `O comerciante indicou ${formatCurrency(orcamento, moeda)} como orçamento.`
-              : 'O comerciante não indicou orçamento — proponha o seu valor.'
+              ? `Use ${formatCurrency(orcamento, moeda)} como referência, mas ajuste para o custo real da operação.`
+              : 'Proponha o seu valor com base no custo real da rota.'
           }
           error={estado.erros?.amount?.[0]}
         />

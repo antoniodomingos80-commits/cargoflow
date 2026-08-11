@@ -38,6 +38,11 @@ export type EstadoPagamento = {
   referencia?: ReferenciaMulticaixa;
 };
 
+export type EstadoKycPagamentos = {
+  bloqueado: boolean;
+  mensagem: string;
+};
+
 export type PagamentoHistorico = {
   id: string;
   agreement_id: string;
@@ -46,8 +51,10 @@ export type PagamentoHistorico = {
   amount: number;
   currency: string;
   external_reference: string | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
   paid_at: string | null;
+  expires_at: string | null;
 };
 
 const baseQuery = `
@@ -66,9 +73,25 @@ function valorCobranca(acordo: AcordoPagamento) {
   return Number(acordo.agreed_amount || 0);
 }
 
+export async function estadoKycPagamentos(): Promise<EstadoKycPagamentos> {
+  const perfil = await getSessionProfile();
+  if (!perfil) {
+    return { bloqueado: true, mensagem: 'Inicie sessão para aceder aos pagamentos.' };
+  }
+
+  if (perfil.user.verification !== 'APPROVED') {
+    return {
+      bloqueado: true,
+      mensagem: 'Complete a verificação da conta para desbloquear pagamentos.',
+    };
+  }
+
+  return { bloqueado: false, mensagem: '' };
+}
+
 export async function listarAcordosParaPagamento() {
   const perfil = await getSessionProfile();
-  if (!perfil) return [];
+  if (!perfil || perfil.user.verification !== 'APPROVED') return [];
 
   const supabase = createClient();
   const { data, error } = await supabase
@@ -92,7 +115,9 @@ export async function listarHistoricoPagamentos(): Promise<PagamentoHistorico[]>
   const supabase = createClient();
   const { data, error } = await supabase
     .from('payments')
-    .select('id, agreement_id, provider, status, amount, currency, external_reference, created_at, paid_at')
+    .select(
+      'id, agreement_id, provider, status, amount, currency, external_reference, metadata, created_at, paid_at, expires_at',
+    )
     .eq('tenant_id', perfil.tenant.id)
     .order('created_at', { ascending: false })
     .limit(50);
@@ -161,6 +186,10 @@ export async function iniciarPagamentoStripe(formData: FormData) {
   if (!auth) redirect('/pagamentos?erro=sem_permissao');
 
   const { perfil, acordo } = auth;
+  if (perfil.user.verification !== 'APPROVED') {
+    redirect('/pagamentos?erro=kyc_pendente');
+  }
+
   const amount = valorCobranca(acordo);
   if (amount <= 0) redirect('/pagamentos?erro=valor_invalido');
 
@@ -182,19 +211,24 @@ export async function iniciarPagamentoStripe(formData: FormData) {
     },
   });
 
+  const stripeMeta = {
+    agreement_id: acordo.id,
+    tenant_id: perfil.tenant.id,
+    tenant_name: perfil.tenant.name,
+    load_reference: acordo.load?.reference ?? '',
+    trip_reference: acordo.trip?.reference ?? '',
+    payment_id: pagamentoId ?? '',
+    provider: 'stripe',
+  };
+
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     success_url: `${baseUrl}/pagamentos?sucesso=stripe`,
     cancel_url: `${baseUrl}/pagamentos?cancelado=stripe`,
     customer_email: perfil.user.email ?? undefined,
-    metadata: {
-      agreement_id: acordo.id,
-      tenant_id: perfil.tenant.id,
-      tenant_name: perfil.tenant.name,
-      load_reference: acordo.load?.reference ?? '',
-      trip_reference: acordo.trip?.reference ?? '',
-      payment_id: pagamentoId ?? '',
-      provider: 'stripe',
+    metadata: stripeMeta,
+    payment_intent_data: {
+      metadata: stripeMeta,
     },
     line_items: [
       {
@@ -226,6 +260,10 @@ export async function gerarReferenciaMulticaixa(
   if (!auth) return { erro: 'Sem permissão para este acordo.' };
 
   const { perfil, acordo } = auth;
+  if (perfil.user.verification !== 'APPROVED') {
+    return { erro: 'Complete a verificação da conta para desbloquear pagamentos.' };
+  }
+
   const valor = valorCobranca(acordo);
   if (valor <= 0) return { erro: 'Este acordo não tem valor para cobrança.' };
 
@@ -241,7 +279,11 @@ export async function gerarReferenciaMulticaixa(
     currency: acordo.currency || 'AOA',
     externalReference: referencia,
     expiresAt: expira,
-    meta: { entidade },
+    meta: {
+      entidade,
+      load_reference: acordo.load?.reference ?? '',
+      trip_reference: acordo.trip?.reference ?? '',
+    },
   });
 
   return {
@@ -265,23 +307,66 @@ export async function atualizarPagamentoInterno(params: {
   rawPayload?: Record<string, unknown>;
 }) {
   const admin = createAdminClient();
+  const agora = new Date().toISOString();
 
-  let q = admin
+  let lookup = admin
+    .from('payments')
+    .select('id, metadata, paid_at, external_id')
+    .eq('provider', params.provider)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (params.paymentId) lookup = lookup.eq('id', params.paymentId);
+  else if (params.externalReference) lookup = lookup.eq('external_reference', params.externalReference);
+  else if (params.externalId) lookup = lookup.eq('external_id', params.externalId);
+  else return;
+
+  const { data: rows, error: lookupError } = await lookup;
+  if (lookupError || !rows || rows.length === 0) {
+    if (lookupError) console.error('Erro ao procurar pagamento:', lookupError.message);
+    return;
+  }
+
+  const atual = rows[0] as {
+    id: string;
+    metadata: Record<string, unknown> | null;
+    paid_at: string | null;
+    external_id: string | null;
+  };
+
+  const metadataAtual =
+    atual.metadata && typeof atual.metadata === 'object' && !Array.isArray(atual.metadata)
+      ? atual.metadata
+      : {};
+
+  const metadata = {
+    ...metadataAtual,
+    reconciliation: {
+      provider: params.provider,
+      status: params.status,
+      updated_at: agora,
+      external_id: params.externalId ?? atual.external_id,
+    },
+    ...(params.rawPayload
+      ? {
+          provider_payload: {
+            ...((metadataAtual.provider_payload as Record<string, unknown> | undefined) ?? {}),
+            [agora]: params.rawPayload,
+          },
+        }
+      : {}),
+  };
+
+  const { error } = await admin
     .from('payments')
     .update({
       status: params.status,
-      external_id: params.externalId ?? null,
-      metadata: params.rawPayload ?? {},
-      paid_at: params.status === 'PAID' ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
+      external_id: params.externalId ?? atual.external_id,
+      metadata,
+      paid_at: params.status === 'PAID' ? agora : atual.paid_at,
+      updated_at: agora,
     })
-    .eq('provider', params.provider);
+    .eq('id', atual.id);
 
-  if (params.paymentId) q = q.eq('id', params.paymentId);
-  else if (params.externalReference) q = q.eq('external_reference', params.externalReference);
-  else if (params.externalId) q = q.eq('external_id', params.externalId);
-  else return;
-
-  const { error } = await q;
   if (error) console.error('Erro ao atualizar pagamento:', error.message);
 }

@@ -219,6 +219,15 @@ export default async function PaginaRastreio({ params }: { params: Promise<{ id:
         )}
       </section>
 
+      {estado.atual_em && (
+        <div className="cf-card border-brand-100 bg-brand-50/40 p-4 text-sm text-brand-700">
+          <div className="flex items-center gap-2">
+            <Navigation className="h-4 w-4" aria-hidden="true" />
+            <span>Rastreamento em tempo real ativo para esta entrega.</span>
+          </div>
+        </div>
+      )}
+
       {/* Controlo do motorista — só enquanto a carga está a caminho */}
       {ehTransportador &&
         estado.trip_id &&
@@ -248,6 +257,7 @@ export default async function PaginaRastreio({ params }: { params: Promise<{ id:
             ? (estado.motorista_nome ?? 'o transportador')
             : 'o comerciante'
         }
+        tripId={estado.trip_id}
       />
 
       {/* Linha temporal */}

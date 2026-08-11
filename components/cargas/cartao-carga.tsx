@@ -3,7 +3,7 @@ import {
   LOAD_STATUS_LABELS, LOAD_STATUS_BADGE, CARGO_TYPE_LABELS, type Load,
 } from '@/lib/types';
 import { formatCurrency, formatWeight, formatDistance, formatRelativeTime } from '@/lib/utils';
-import { ArrowRight, Package, Calendar, Zap, Snowflake } from 'lucide-react';
+import { ArrowRight, Package, Calendar, Zap, Snowflake, RotateCcw } from 'lucide-react';
 
 /**
  * Cartão de carga — usado tanto em "As minhas cargas" como no marketplace.
@@ -17,6 +17,12 @@ export function CartaoCarga({
   contexto?: 'proprio' | 'mercado';
 }) {
   const href = contexto === 'mercado' ? `/mercado/cargas/${carga.id}` : `/cargas/${carga.id}`;
+  const ehRetorno = carga.is_return_trip === true;
+  const razoesDestacadas = [
+    ehRetorno ? 'Retorno' : null,
+    carga.is_urgent ? 'Urgente' : null,
+    carga.requires_refrigeration ? 'Refrigeração' : null,
+  ].filter(Boolean) as string[];
 
   return (
     <Link href={href} className="cf-card-interactive block p-5">
@@ -54,6 +60,26 @@ export function CartaoCarga({
               </span>
             )}
           </div>
+
+          {razoesDestacadas.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {razoesDestacadas.map((motivo) => (
+                <span
+                  key={motivo}
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600"
+                >
+                  {motivo === 'Retorno' ? (
+                    <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                  ) : motivo === 'Urgente' ? (
+                    <Zap className="h-3 w-3" aria-hidden="true" />
+                  ) : (
+                    <Snowflake className="h-3 w-3" aria-hidden="true" />
+                  )}
+                  {motivo}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Detalhes */}
           <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-slate-500">

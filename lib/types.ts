@@ -181,6 +181,7 @@ export interface Load {
   pickup_until: string;
   delivery_deadline: string | null;
   is_urgent: boolean;
+  is_return_trip?: boolean | null;
   budget_amount: number | null;
   currency: string;
   suggested_price: number | null;
