@@ -13,21 +13,26 @@ export const metadata = { title: 'Cargas disponíveis' };
 export default async function PaginaMercadoCargas({
   searchParams,
 }: {
-  searchParams: { origem?: string; destino?: string; tipo?: string; pesoMax?: string };
+  searchParams: Promise<{ origem?: string; destino?: string; tipo?: string; pesoMax?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
+  const filtros = await searchParams;
+
   const [cargasRaw, localidadesRaw] = await Promise.all([
-    listarMercadoCargas(searchParams),
+    listarMercadoCargas(filtros),
     listarLocalidades(),
   ]);
   const cargas = cargasRaw as unknown as Load[];
   const localidades = localidadesRaw as unknown as CFLocation[];
 
   const temFiltros = Boolean(
-    searchParams.origem || searchParams.destino || searchParams.tipo || searchParams.pesoMax,
+    filtros.origem || filtros.destino || filtros.tipo || filtros.pesoMax,
   );
+  const cargasUrgentes = cargas.filter((carga) => carga.is_urgent).length;
+  const cargasRetorno = cargas.filter((carga) => carga.is_return_trip === true).length;
+  const cargasRefrigeradas = cargas.filter((carga) => carga.requires_refrigeration).length;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -48,7 +53,7 @@ export default async function PaginaMercadoCargas({
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <select
             name="origem"
-            defaultValue={searchParams.origem ?? ''}
+            defaultValue={filtros.origem ?? ''}
             aria-label="Origem"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
@@ -60,7 +65,7 @@ export default async function PaginaMercadoCargas({
 
           <select
             name="destino"
-            defaultValue={searchParams.destino ?? ''}
+            defaultValue={filtros.destino ?? ''}
             aria-label="Destino"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
@@ -72,7 +77,7 @@ export default async function PaginaMercadoCargas({
 
           <select
             name="tipo"
-            defaultValue={searchParams.tipo ?? ''}
+            defaultValue={filtros.tipo ?? ''}
             aria-label="Tipo de carga"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
@@ -87,7 +92,7 @@ export default async function PaginaMercadoCargas({
             type="number"
             min={0}
             step={100}
-            defaultValue={searchParams.pesoMax ?? ''}
+            defaultValue={filtros.pesoMax ?? ''}
             placeholder="Peso máx. (kg)"
             aria-label="Peso máximo em quilogramas"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -110,6 +115,17 @@ export default async function PaginaMercadoCargas({
           )}
         </div>
       </form>
+
+      {cargas.length > 0 && (
+        <div className="rounded-2xl border border-brand-100 bg-brand-50/70 p-4">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-brand-700">
+            <span className="font-semibold">Oportunidades destacadas</span>
+            {cargasUrgentes > 0 && <span className="rounded-full bg-white px-2.5 py-1">{cargasUrgentes} urgentes</span>}
+            {cargasRetorno > 0 && <span className="rounded-full bg-white px-2.5 py-1">{cargasRetorno} com retorno</span>}
+            {cargasRefrigeradas > 0 && <span className="rounded-full bg-white px-2.5 py-1">{cargasRefrigeradas} refrigeradas</span>}
+          </div>
+        </div>
+      )}
 
       <p className="text-sm text-slate-500">
         {cargas.length === 0

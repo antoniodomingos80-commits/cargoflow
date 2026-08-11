@@ -142,8 +142,6 @@ export function Conversa({
     });
   }
 
-  let diaAnterior = '';
-
   return (
     <div className="flex h-[calc(100vh-12rem)] flex-col">
       {/* Mensagens */}
@@ -154,10 +152,10 @@ export function Conversa({
           </p>
         )}
 
-        {mensagens.map((m) => {
+        {mensagens.map((m, idx) => {
           const dia = formatarDia(m.created_at);
+          const diaAnterior = idx > 0 ? formatarDia(mensagens[idx - 1].created_at) : null;
           const mostrarDia = dia !== diaAnterior;
-          diaAnterior = dia;
 
           return (
             <div key={m.message_id}>

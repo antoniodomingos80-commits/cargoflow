@@ -35,14 +35,18 @@ export default async function PaginaDetalheViagem({
   params,
   searchParams,
 }: {
-  params: { id: string };
-  searchParams: { criada?: string; guardada?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ criada?: string; guardada?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const viagem = (await obterViagem(params.id)) as any;
+  const routeParams = await params;
+
+  const viagem = (await obterViagem(routeParams.id)) as any;
   if (!viagem) notFound();
+
+  const filtros = await searchParams;
 
   const ehDono = viagem.tenant_id === perfil.tenant.id;
   const correspondencias = ehDono ? await correspondenciasDaViagem(viagem.id) : [];
@@ -58,7 +62,7 @@ export default async function PaginaDetalheViagem({
         As minhas viagens
       </Link>
 
-      {searchParams.criada && (
+      {filtros.criada && (
         <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>
@@ -68,7 +72,7 @@ export default async function PaginaDetalheViagem({
         </div>
       )}
 
-      {searchParams.guardada && (
+      {filtros.guardada && (
         <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>

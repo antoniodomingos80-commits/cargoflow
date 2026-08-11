@@ -99,8 +99,12 @@ export function FormularioDocumento({ perfilCarrier }: { perfilCarrier: boolean 
             className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-600 hover:file:bg-brand-100"
           />
           <p className="text-xs text-slate-500">
-            Fotografia ou PDF, até 10 MB. Certifique-se de que é legível.
+            Fotografia ou PDF, até 10 MB. Certifique-se de que é legível. Se for uma imagem de veículo ou documento físico, carregue uma vista legível e, quando aplicável, a imagem antes/depois do estado relevante.
           </p>
+        </div>
+
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          Para documentos de veículo ou inspeção, prefira fotos com matrícula, estado do veículo e qualquer evidência que ajude a validação.
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

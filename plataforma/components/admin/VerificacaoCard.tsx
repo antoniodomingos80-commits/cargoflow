@@ -1,122 +1,46 @@
 ﻿'use client';
 
-import { useState } from 'react';
-import { decidirVerificacao } from '@/lib/admin/verificacoes';
-
 type Verificacao = {
-  user_id: string;
-  full_name: string;
+  id: string;
   email: string;
-  phone: string | null;
-  role: string;
-  criado_em: string;
-  tenant_id: string;
-  tenant_nome: string;
-  tenant_tipo: string;
-  tax_id: string | null;
-  n_documentos: number;
-  n_veiculos: number;
+  full_name: string | null;
+  verification: string;
 };
 
-export function VerificacaoCard({ verificacao }: { verificacao: Verificacao }) {
-  const [aProcessar, setAProcessar] = useState(false);
-  const [erro, setErro] = useState('');
-  const [motivo, setMotivo] = useState('');
-  const [aRejeitar, setARejeitar] = useState(false);
-
-  async function aprovar() {
-    setAProcessar(true);
-    setErro('');
-    try {
-      await decidirVerificacao(verificacao.user_id, true);
-    } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro ao aprovar.');
-    } finally {
-      setAProcessar(false);
-    }
-  }
-
-  async function rejeitar() {
-    setAProcessar(true);
-    setErro('');
-    try {
-      await decidirVerificacao(verificacao.user_id, false, motivo || undefined);
-      setARejeitar(false);
-    } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro ao rejeitar.');
-    } finally {
-      setAProcessar(false);
-    }
-  }
+export function VerificacaoCard({
+  usuario,
+  verificacao,
+  onAprovar,
+  onRejeitar,
+}: {
+  usuario?: Verificacao;
+  verificacao?: Verificacao;
+  onAprovar?: (id: string) => void;
+  onRejeitar?: (id: string, motivo: string) => void;
+}) {
+  const v = verificacao ?? usuario!;
+  const handleAprovar = () => (onAprovar ? onAprovar(v.id) : undefined);
+  const handleRejeitar = () =>
+    onRejeitar ? onRejeitar(v.id, 'Documentação incompleta') : undefined;
 
   return (
     <div className="bg-white border rounded-lg p-4 shadow">
-      <div className="mb-3">
-        <p className="font-semibold text-lg">{verificacao.full_name}</p>
-        <p className="text-sm text-gray-600">{verificacao.email}</p>
-        {verificacao.phone && <p className="text-sm text-gray-600">{verificacao.phone}</p>}
+      <p className="font-semibold">{v.full_name || 'Sem nome'}</p>
+      <p className="text-sm text-gray-600">{v.email}</p>
+      <div className="flex gap-2 mt-3">
+        <button
+          onClick={handleAprovar}
+          className="flex-1 px-3 py-2 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700"
+        >
+          ✅ Aprovar
+        </button>
+        <button
+          onClick={handleRejeitar}
+          className="flex-1 px-3 py-2 bg-red-600 text-white rounded text-sm font-semibold hover:bg-red-700"
+        >
+          ❌ Rejeitar
+        </button>
       </div>
-
-      <div className="mb-3 rounded bg-gray-50 p-3 text-sm">
-        <p><span className="font-medium">Empresa:</span> {verificacao.tenant_nome}</p>
-        <p><span className="font-medium">Tipo:</span> {verificacao.tenant_tipo}</p>
-        {verificacao.tax_id && (
-          <p><span className="font-medium">NIF:</span> {verificacao.tax_id}</p>
-        )}
-        <p><span className="font-medium">Documentos:</span> {verificacao.n_documentos}</p>
-        <p><span className="font-medium">Veiculos:</span> {verificacao.n_veiculos}</p>
-      </div>
-
-      <p className="text-xs text-gray-500 mb-3">
-        Pedido em {new Date(verificacao.criado_em).toLocaleDateString('pt-AO')}
-      </p>
-
-      {erro && <div className="mb-3 p-2 bg-red-100 rounded text-red-700 text-sm">{erro}</div>}
-
-      {aRejeitar ? (
-        <div className="space-y-2">
-          <textarea
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            placeholder="Motivo da rejeicao (opcional)"
-            className="w-full rounded border border-gray-300 p-2 text-sm"
-            rows={2}
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={rejeitar}
-              disabled={aProcessar}
-              className="flex-1 px-3 py-2 bg-red-600 text-white rounded text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
-            >
-              Confirmar rejeicao
-            </button>
-            <button
-              onClick={() => setARejeitar(false)}
-              disabled={aProcessar}
-              className="px-3 py-2 bg-gray-200 rounded text-sm font-semibold hover:bg-gray-300"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <button
-            onClick={aprovar}
-            disabled={aProcessar}
-            className="flex-1 px-3 py-2 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
-          >
-            Aprovar
-          </button>
-          <button
-            onClick={() => setARejeitar(true)}
-            disabled={aProcessar}
-            className="flex-1 px-3 py-2 bg-red-600 text-white rounded text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
-          >
-            Rejeitar
-          </button>
-        </div>
-      )}
     </div>
   );
 }

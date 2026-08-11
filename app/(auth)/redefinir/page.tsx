@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { redefinirPassword, type EstadoFormulario } from '../actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +28,7 @@ function BotaoSubmeter() {
  * quem chega aqui provou ter acesso à caixa de correio da conta.
  */
 export default function PaginaRedefinir() {
-  const [estado, formAction] = useFormState(redefinirPassword, estadoInicial);
+  const [estado, formAction] = useActionState(redefinirPassword, estadoInicial);
 
   return (
     <div className="w-full max-w-md animate-fade-up">

@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "types:supabase": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > lib/database.types.ts"
   },
@@ -27,6 +27,7 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.1",
     "react-leaflet": "^4.2.1",
+    "stripe": "^22.4.0",
     "tailwind-merge": "^2.5.5",
     "zod": "^3.24.1",
     "zustand": "^5.0.2"

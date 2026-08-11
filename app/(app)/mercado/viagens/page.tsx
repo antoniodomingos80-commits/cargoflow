@@ -22,21 +22,26 @@ function formatarData(iso: string) {
 export default async function PaginaMercadoViagens({
   searchParams,
 }: {
-  searchParams: { origem?: string; destino?: string; pesoMin?: string };
+  searchParams: Promise<{ origem?: string; destino?: string; pesoMin?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
+  const filtros = await searchParams;
+
   const [viagensRaw, localidadesRaw] = await Promise.all([
-    listarMercadoViagens(searchParams),
+    listarMercadoViagens(filtros),
     listarLocalidades(),
   ]);
   const viagens = viagensRaw as any[];
   const localidades = localidadesRaw as unknown as CFLocation[];
 
   const temFiltros = Boolean(
-    searchParams.origem || searchParams.destino || searchParams.pesoMin,
+    filtros.origem || filtros.destino || filtros.pesoMin,
   );
+  const viagensRetorno = viagens.filter((viagem) => viagem.is_return_trip).length;
+  const viagensRefrigeradas = viagens.filter((viagem) => viagem.vehicle?.has_refrigeration).length;
+  const viagensComEspaco = viagens.filter((viagem) => Number(viagem.available_weight_kg) >= 10000).length;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -56,7 +61,7 @@ export default async function PaginaMercadoViagens({
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <select
             name="origem"
-            defaultValue={searchParams.origem ?? ''}
+            defaultValue={filtros.origem ?? ''}
             aria-label="Origem"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
@@ -68,7 +73,7 @@ export default async function PaginaMercadoViagens({
 
           <select
             name="destino"
-            defaultValue={searchParams.destino ?? ''}
+            defaultValue={filtros.destino ?? ''}
             aria-label="Destino"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
@@ -83,7 +88,7 @@ export default async function PaginaMercadoViagens({
             type="number"
             min={0}
             step={100}
-            defaultValue={searchParams.pesoMin ?? ''}
+            defaultValue={filtros.pesoMin ?? ''}
             placeholder="Espaço mín. (kg)"
             aria-label="Espaço mínimo necessário em quilogramas"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -106,6 +111,17 @@ export default async function PaginaMercadoViagens({
           )}
         </div>
       </form>
+
+      {viagens.length > 0 && (
+        <div className="rounded-2xl border border-brand-100 bg-brand-50/70 p-4">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-brand-700">
+            <span className="font-semibold">Oportunidades de transporte</span>
+            {viagensRetorno > 0 && <span className="rounded-full bg-white px-2.5 py-1">{viagensRetorno} com retorno</span>}
+            {viagensRefrigeradas > 0 && <span className="rounded-full bg-white px-2.5 py-1">{viagensRefrigeradas} refrigeradas</span>}
+            {viagensComEspaco > 0 && <span className="rounded-full bg-white px-2.5 py-1">{viagensComEspaco} com grande capacidade</span>}
+          </div>
+        </div>
+      )}
 
       <p className="text-sm text-slate-500">
         {viagens.length === 0
@@ -154,6 +170,24 @@ export default async function PaginaMercadoViagens({
                     <span className="font-semibold text-navy-600">{v.origin?.city}</span>
                     <ArrowRight className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
                     <span className="font-semibold text-navy-600">{v.destination?.city}</span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {v.is_return_trip && (
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                        Retorno
+                      </span>
+                    )}
+                    {v.vehicle?.has_refrigeration && (
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                        Refrigerado
+                      </span>
+                    )}
+                    {Number(v.available_weight_kg) >= 10000 && (
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                        Grande capacidade
+                      </span>
+                    )}
                   </div>
 
                   <dl className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-slate-500">

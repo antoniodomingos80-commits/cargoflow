@@ -31,21 +31,23 @@ function formatarData(iso: string) {
   });
 }
 
-export default async function PaginaRastreio({ params }: { params: { id: string } }) {
+export default async function PaginaRastreio({ params }: { params: Promise<{ id: string }> }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const carga = (await obterCarga(params.id)) as unknown as Load | null;
+  const routeParams = await params;
+
+  const carga = (await obterCarga(routeParams.id)) as unknown as Load | null;
   if (!carga) notFound();
 
-  const estado = await obterEstadoRastreio(params.id);
+  const estado = await obterEstadoRastreio(routeParams.id);
   if (!estado) notFound();
 
   const [percurso, eventos, prova, avaliacoes] = await Promise.all([
     estado.trip_id ? obterPercurso(estado.trip_id) : Promise.resolve([]),
-    obterEventos(params.id),
-    obterProvaEntrega(params.id),
-    obterAvaliacoes(params.id),
+    obterEventos(routeParams.id),
+    obterProvaEntrega(routeParams.id),
+    obterAvaliacoes(routeParams.id),
   ]);
 
   // Os buckets são privados — as imagens precisam de URLs assinados.
@@ -217,6 +219,15 @@ export default async function PaginaRastreio({ params }: { params: { id: string 
         )}
       </section>
 
+      {estado.atual_em && (
+        <div className="cf-card border-brand-100 bg-brand-50/40 p-4 text-sm text-brand-700">
+          <div className="flex items-center gap-2">
+            <Navigation className="h-4 w-4" aria-hidden="true" />
+            <span>Rastreamento em tempo real ativo para esta entrega.</span>
+          </div>
+        </div>
+      )}
+
       {/* Controlo do motorista — só enquanto a carga está a caminho */}
       {ehTransportador &&
         estado.trip_id &&
@@ -246,6 +257,7 @@ export default async function PaginaRastreio({ params }: { params: { id: string 
             ? (estado.motorista_nome ?? 'o transportador')
             : 'o comerciante'
         }
+        tripId={estado.trip_id}
       />
 
       {/* Linha temporal */}

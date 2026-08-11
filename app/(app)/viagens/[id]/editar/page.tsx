@@ -14,12 +14,14 @@ const ESTADOS_EDITAVEIS = ['PUBLISHED', 'PARTIALLY_BOOKED', 'FULL'];
 export default async function PaginaEditarViagem({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const viagem = (await obterViagem(params.id)) as any;
+  const routeParams = await params;
+
+  const viagem = (await obterViagem(routeParams.id)) as any;
   if (!viagem) notFound();
 
   // Só o dono edita. O RLS já limita a escrita, mas não vale a pena mostrar
@@ -27,7 +29,7 @@ export default async function PaginaEditarViagem({
   if (viagem.tenant_id !== perfil.tenant.id) notFound();
 
   if (!ESTADOS_EDITAVEIS.includes(viagem.status)) {
-    redirect(`/viagens/${params.id}`);
+    redirect(`/viagens/${routeParams.id}`);
   }
 
   const [localidades, veiculos] = await Promise.all([
@@ -58,7 +60,7 @@ export default async function PaginaEditarViagem({
   return (
     <div className="mx-auto max-w-2xl">
       <Link
-        href={`/viagens/${params.id}`}
+        href={`/viagens/${routeParams.id}`}
         className="mb-6 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-navy-600"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />

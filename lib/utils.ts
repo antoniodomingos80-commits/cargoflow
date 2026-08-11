@@ -49,3 +49,30 @@ export function formatRelativeTime(date: Date | string): string {
 export function buildReference(prefix: 'CF' | 'VG', sequence: number): string {
   return `${prefix}-${new Date().getFullYear()}-${String(sequence).padStart(6, '0')}`;
 }
+
+/**
+ * Parse a user-provided currency/amount string into a number.
+ * Handles formats like "1.234.567,89" or "1,234,567.89" and plain numbers.
+ */
+export function parseAmount(value: FormDataEntryValue | null | undefined): number | null {
+  if (value == null) return null;
+  const s = typeof value === 'string' ? value : String(value);
+  const cleaned = s.trim().replace(/[\s\u00A0]/g, '');
+  if (cleaned === '') return null;
+
+  // Keep only digits, dot and comma and minus
+  let only = cleaned.replace(/[^0-9.,-]/g, '');
+  const lastDot = only.lastIndexOf('.');
+  const lastComma = only.lastIndexOf(',');
+
+  if (lastComma > lastDot) {
+    // comma as decimal separator, dots as thousands
+    only = only.replace(/\./g, '').replace(',', '.');
+  } else if (lastDot > lastComma) {
+    // dot as decimal separator, commas as thousands
+    only = only.replace(/,/g, '');
+  }
+
+  const n = Number(only);
+  return Number.isFinite(n) ? n : null;
+}

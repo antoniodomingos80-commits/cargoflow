@@ -11,7 +11,7 @@ interface UtilizadorCardProps {
     phone: string;
     role: string;
     created_at: string;
-    verification_status: string;
+    verification: string;
     banned: boolean;
   };
 }
@@ -68,7 +68,7 @@ export function UtilizadorCard({ usuario }: UtilizadorCardProps) {
             {usuario.role === 'SHIPPER' ? '📦 Comerciante' : '🚚 Transportador'}
           </span>
           <span className="px-2 py-1 bg-yellow-100 rounded">
-            {usuario.verification_status === 'APPROVED' ? '✅ Verificado' : '⏳ Pendente'}
+            {usuario.verification === 'APPROVED' ? '✅ Verificado' : '⏳ Pendente'}
           </span>
           <span className={`px-2 py-1 rounded ${usuario.banned ? 'bg-red-100' : 'bg-green-100'}`}>
             {usuario.banned ? '🚫 Suspenso' : '✅ Ativo'}

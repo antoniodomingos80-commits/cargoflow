@@ -9,7 +9,7 @@ type Usuario = {
   email: string;
   full_name: string | null;
   phone: string | null;
-  verification_status: string;
+  verification: string;
   banned: boolean;
   created_at: string;
 };
@@ -20,11 +20,7 @@ export default function UtilizadoresPage() {
   const [erro, setErro] = useState('');
   const [filtro, setFiltro] = useState('TODOS');
 
-  useEffect(() => {
-    carregarUtilizadores();
-  }, []);
-
-  const carregarUtilizadores = async () => {
+  async function carregarUtilizadores() {
     try {
       setLoading(true);
       setErro('');
@@ -36,7 +32,14 @@ export default function UtilizadoresPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void carregarUtilizadores();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSuspender = async (id: string) => {
     try {
@@ -61,7 +64,7 @@ export default function UtilizadoresPage() {
   const filtrados = usuarios.filter(u => {
     if (filtro === 'ATIVOS') return !u.banned;
     if (filtro === 'SUSPENSOS') return u.banned;
-    if (filtro === 'VERIFICADOS') return u.verification_status === 'APPROVED';
+    if (filtro === 'VERIFICADOS') return u.verification === 'APPROVED';
     return true;
   });
 
@@ -99,7 +102,7 @@ export default function UtilizadoresPage() {
             {f} ({usuarios.filter(u => {
               if (f === 'ATIVOS') return !u.banned;
               if (f === 'SUSPENSOS') return u.banned;
-              if (f === 'VERIFICADOS') return u.verification_status === 'APPROVED';
+              if (f === 'VERIFICADOS') return u.verification === 'APPROVED';
               return true;
             }).length})
           </button>
@@ -124,11 +127,11 @@ export default function UtilizadoresPage() {
 
               <div className="mb-3 flex gap-2">
                 <span className={`px-2 py-1 text-xs rounded font-semibold ${
-                  u.verification_status === 'APPROVED' 
-                    ? 'bg-green-100 text-green-800' 
+                  u.verification === 'APPROVED'
+                    ? 'bg-green-100 text-green-800'
                     : 'bg-yellow-100 text-yellow-800'
                 }`}>
-                  {u.verification_status === 'APPROVED' ? '✅ Verificado' : '⏳ Pendente'}
+                  {u.verification === 'APPROVED' ? '✅ Verificado' : '⏳ Pendente'}
                 </span>
                 {u.banned && <span className="px-2 py-1 text-xs rounded font-semibold bg-red-100 text-red-800">🚫 Suspenso</span>}
               </div>

@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { useState } from 'react';
 import Link from 'next/link';
 import { criarCarga, editarCarga, type EstadoCarga } from '@/lib/cargas/actions';
@@ -98,7 +99,7 @@ export function FormularioCarga({
 }) {
   const edicao = !!carga;
   const ehRascunho = carga?.status === 'DRAFT';
-  const [estado, formAction] = useFormState(
+  const [estado, formAction] = useActionState(
     edicao ? editarCarga : criarCarga,
     estadoInicial,
   );

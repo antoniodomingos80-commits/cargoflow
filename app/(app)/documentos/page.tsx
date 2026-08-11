@@ -34,6 +34,8 @@ export default async function PaginaDocumentos() {
     perfil.user.role,
   );
   const porVerificar = perfil.user.verification === 'PENDING';
+  const aprovados = documentos.filter((d) => d.verification === 'APPROVED').length;
+  const pendentes = documentos.filter((d) => d.verification === 'PENDING').length;
 
   // URLs assinados para pré-visualização (o bucket é privado)
   const urls = Object.fromEntries(
@@ -73,6 +75,21 @@ export default async function PaginaDocumentos() {
           </div>
         </div>
       )}
+
+      <div className="cf-card grid gap-4 p-5 sm:grid-cols-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-400">Documentos carregados</p>
+          <p className="mt-1 text-2xl font-bold text-navy-600">{documentos.length}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-400">Aprovados</p>
+          <p className="mt-1 text-2xl font-bold text-green-600">{aprovados}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-400">Pendentes</p>
+          <p className="mt-1 text-2xl font-bold text-amber-600">{pendentes}</p>
+        </div>
+      </div>
 
       {documentos.length === 0 ? (
         <EmptyState

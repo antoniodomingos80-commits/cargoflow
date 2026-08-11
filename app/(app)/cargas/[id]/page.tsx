@@ -31,14 +31,18 @@ export default async function PaginaDetalheCarga({
   params,
   searchParams,
 }: {
-  params: { id: string };
-  searchParams: { criada?: string; guardada?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ criada?: string; guardada?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const carga = (await obterCarga(params.id)) as unknown as Load | null;
+  const routeParams = await params;
+
+  const carga = (await obterCarga(routeParams.id)) as unknown as Load | null;
   if (!carga) notFound();
+
+  const filtros = await searchParams;
 
   const ehDono = carga.tenant_id === perfil.tenant.id;
 
@@ -83,7 +87,7 @@ export default async function PaginaDetalheCarga({
         As minhas cargas
       </Link>
 
-      {searchParams.criada && (
+      {filtros.criada && (
         <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>
@@ -94,7 +98,7 @@ export default async function PaginaDetalheCarga({
         </div>
       )}
 
-      {searchParams.guardada && (
+      {filtros.guardada && (
         <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>

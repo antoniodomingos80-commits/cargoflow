@@ -18,10 +18,14 @@ export interface Documento {
 }
 
 export async function listarDocumentos(): Promise<Documento[]> {
+  const perfil = await getSessionProfile();
+  if (!perfil) return [];
+
   const supabase = createClient();
   const { data } = await supabase
     .from('documents')
     .select('*')
+    .eq('tenant_id', perfil.tenant.id)
     .order('created_at', { ascending: false });
   return (data ?? []) as Documento[];
 }
