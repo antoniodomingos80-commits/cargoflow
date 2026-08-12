@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -61,25 +61,36 @@ export async function verificacoesPendentes(): Promise<VerificacaoPendente[]> {
   await exigirAdmin();
   const supabase = getAdminSupabase();
 
-  try {
-    const { data, error } = await supabase.rpc('cf_admin_verificacoes_pendentes');
-    if (!error && Array.isArray(data)) {
-      return (data ?? []) as VerificacaoPendente[];
-    }
-  } catch (erro) {
-    console.warn('RPC cf_admin_verificacoes_pendentes indisponível; a usar fallback.', erro);
-  }
-
   const { data: utilizadores, error: erroUtilizadores } = await supabase
     .from('users')
-    .select('id, full_name, email, phone, role, created_at, tenant_id, tenant:tenants(id, name, type, tax_id), vehicles:vehicles(id), documents:documents(id)')
+    .select('id, full_name, email, phone, role, created_at, tenant_id, tenant:tenants(id, name, type, tax_id)')
     .eq('verification', 'PENDING')
     .order('created_at', { ascending: false });
 
   if (erroUtilizadores) {
-    console.error('Erro ao carregar verificações pendentes com fallback:', erroUtilizadores.message);
+    console.error('Erro ao carregar verificações pendentes:', erroUtilizadores.message);
     return [];
   }
+
+  const tenantIds = [...new Set((utilizadores ?? []).map((u: any) => u.tenant_id).filter(Boolean))];
+
+  const { data: documentos } = tenantIds.length
+    ? await supabase.from('documents').select('tenant_id, id').in('tenant_id', tenantIds)
+    : { data: [] as any[] };
+
+  const { data: veiculos } = tenantIds.length
+    ? await supabase.from('vehicles').select('tenant_id, id').in('tenant_id', tenantIds)
+    : { data: [] as any[] };
+
+  const contagemDocumentos = new Map<string, number>();
+  (documentos ?? []).forEach((doc: any) => {
+    contagemDocumentos.set(doc.tenant_id, (contagemDocumentos.get(doc.tenant_id) ?? 0) + 1);
+  });
+
+  const contagemVeiculos = new Map<string, number>();
+  (veiculos ?? []).forEach((veiculo: any) => {
+    contagemVeiculos.set(veiculo.tenant_id, (contagemVeiculos.get(veiculo.tenant_id) ?? 0) + 1);
+  });
 
   return (utilizadores ?? []).map((utilizador: any) => ({
     user_id: utilizador.id,
@@ -92,8 +103,8 @@ export async function verificacoesPendentes(): Promise<VerificacaoPendente[]> {
     tenant_nome: utilizador.tenant?.name ?? 'Sem nome',
     tenant_tipo: utilizador.tenant?.type ?? 'INDIVIDUAL',
     tax_id: utilizador.tenant?.tax_id ?? null,
-    n_documentos: Array.isArray(utilizador.documents) ? utilizador.documents.length : 0,
-    n_veiculos: Array.isArray(utilizador.vehicles) ? utilizador.vehicles.length : 0,
+    n_documentos: contagemDocumentos.get(utilizador.tenant_id) ?? 0,
+    n_veiculos: contagemVeiculos.get(utilizador.tenant_id) ?? 0,
   })) as VerificacaoPendente[];
 }
 
@@ -158,22 +169,6 @@ export async function decidirVerificacao(
 
   const status = aprovar ? 'APPROVED' : 'REJECTED';
 
-  try {
-    const { error: erroRpc } = await supabase.rpc('cf_admin_decidir_verificacao', {
-      p_user_id: utilizadorId,
-      p_aprovar: aprovar,
-      p_motivo: motivo ?? null,
-    });
-
-    if (!erroRpc) {
-      revalidatePath('/admin/verificacoes');
-      revalidatePath('/painel');
-      return;
-    }
-  } catch {
-    // Fallback abaixo.
-  }
-
   const { error: erroUsers } = await supabase
     .from('users')
     .update({
@@ -219,4 +214,84 @@ export async function documentosDoTenant(tenantId: string) {
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false });
   return data ?? [];
+}
+// =============================================================================
+// Documentos avulsos — carregados por contas JÁ aprovadas
+//
+// A aprovação inicial de um utilizador (decidirVerificacao) já aprova, de
+// uma só vez, todos os documentos que existiam nesse momento. Mas nada
+// impede um utilizador já aprovado de carregar um documento NOVO mais
+// tarde (ex.: renovar uma carta de condução caducada) — e esse documento
+// nunca aparecia em lado nenhum para revisão, porque só ficava visível na
+// lista de "verificações pendentes", que só mostra utilizadores por
+// aprovar. Esta função e a página /admin/documentos preenchem esse buraco.
+// =============================================================================
+
+export interface DocumentoPendente {
+  id: string;
+  type: string;
+  file_url: string;
+  document_number: string | null;
+  expires_at: string | null;
+  created_at: string;
+  tenant_id: string;
+  tenant_nome: string;
+  utilizador_nome: string | null;
+}
+
+export async function documentosPendentesAvulsos(): Promise<DocumentoPendente[]> {
+  await exigirAdmin();
+  const supabase = getAdminSupabase();
+
+  const { data, error } = await supabase
+    .from('documents')
+    .select(
+      'id, type, file_url, document_number, expires_at, created_at, tenant_id, ' +
+        'tenant:tenants(name), utilizador:users(full_name)',
+    )
+    .eq('verification', 'PENDING')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Erro ao carregar documentos pendentes:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((d: any) => ({
+    id: d.id,
+    type: d.type,
+    file_url: d.file_url,
+    document_number: d.document_number,
+    expires_at: d.expires_at,
+    created_at: d.created_at,
+    tenant_id: d.tenant_id,
+    tenant_nome: d.tenant?.name ?? 'Sem nome',
+    utilizador_nome: d.utilizador?.full_name ?? null,
+  })) as DocumentoPendente[];
+}
+
+export async function decidirDocumentoAvulso(
+  documentoId: string,
+  aprovar: boolean,
+  motivo?: string,
+) {
+  const perfil = await exigirAdmin();
+  const supabase = getAdminSupabase();
+
+  const status = aprovar ? 'APPROVED' : 'REJECTED';
+
+  const { error } = await supabase
+    .from('documents')
+    .update({
+      verification: status,
+      verified_by: perfil.user.id,
+      verified_at: new Date().toISOString(),
+      rejection_reason: aprovar ? null : (motivo ?? 'Documentação incompleta ou não legível'),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', documentoId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath('/admin/documentos');
 }

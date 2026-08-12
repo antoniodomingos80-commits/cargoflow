@@ -66,6 +66,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/painel', rotulo: 'Visão geral', icone: LayoutDashboard },
     { href: '/admin/utilizadores', rotulo: 'Utilizadores', icone: Users },
     { href: '/admin/verificacoes', rotulo: 'Verificações', icone: ShieldAlert },
+    { href: '/admin/documentos', rotulo: 'Documentos', icone: FileText },
     { href: '/admin/operacoes', rotulo: 'Operações', icone: Package },
     { href: '/admin/relatorios', rotulo: 'Relatórios', icone: BarChart3 },
     { href: '/admin/configuracoes', rotulo: 'Configurações', icone: Settings },
