@@ -247,7 +247,7 @@ export async function documentosPendentesAvulsos(): Promise<DocumentoPendente[]>
     .from('documents')
     .select(
       'id, type, file_url, document_number, expires_at, created_at, tenant_id, ' +
-        'tenant:tenants(name), utilizador:users(full_name)',
+        'tenant:tenants(name), utilizador:users!user_id(full_name)',
     )
     .eq('verification', 'PENDING')
     .order('created_at', { ascending: true });
