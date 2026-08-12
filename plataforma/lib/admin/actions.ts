@@ -55,15 +55,9 @@ export async function verificacoesPendentes(): Promise<VerificacaoPendente[]> {
   await exigirAdmin();
   const supabase = getAdminSupabase();
 
-  try {
-    const { data, error } = await supabase.rpc('cf_admin_verificacoes_pendentes');
-    if (!error && Array.isArray(data)) {
-      return data as VerificacaoPendente[];
-    }
-  } catch (erro) {
-    console.warn('RPC cf_admin_verificacoes_pendentes indisponível; a usar fallback.', erro);
-  }
-
+  // NOTA: a função RPC cf_admin_verificacoes_pendentes foi removida deste fluxo
+  // porque devolvia sempre uma lista vazia mesmo com utilizadores pendentes reais,
+  // escondendo-os da equipa de administração. Usamos sempre a query direta.
   const { data: utilizadores, error: erroUtilizadores } = await supabase
     .from('users')
     .select('id, full_name, email, phone, role, created_at, tenant_id, tenant:tenants(id, name, type, tax_id)')
@@ -71,7 +65,7 @@ export async function verificacoesPendentes(): Promise<VerificacaoPendente[]> {
     .order('created_at', { ascending: false });
 
   if (erroUtilizadores) {
-    console.error('Erro ao carregar verificações pendentes com fallback:', erroUtilizadores.message);
+    console.error('Erro ao carregar verificações pendentes:', erroUtilizadores.message);
     return [];
   }
 
@@ -143,24 +137,10 @@ export async function decidirVerificacao(
     throw new Error(erroUser?.message ?? 'Utilizador não encontrado.');
   }
 
-  try {
-    const { error } = await supabase.rpc('cf_admin_decidir_verificacao', {
-      p_user_id: utilizadorId,
-      p_aprovar: aprovar,
-      p_motivo: motivo ?? null,
-    });
-
-    if (!error) {
-      revalidatePath('/admin/verificacoes');
-      revalidatePath('/painel');
-      return;
-    }
-  } catch {
-    // Fallback abaixo.
-  }
-
   const status = aprovar ? 'APPROVED' : 'REJECTED';
 
+  // NOTA: a função RPC cf_admin_decidir_verificacao foi removida deste fluxo
+  // pelo mesmo motivo do fallback acima — usamos sempre as atualizações diretas.
   const { error: erroUsers } = await supabase
     .from('users')
     .update({ verification: status, updated_at: new Date().toISOString() })

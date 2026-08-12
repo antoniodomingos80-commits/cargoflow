@@ -7,6 +7,13 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.supabase.co' },
     ],
   },
+  experimental: {
+    serverActions: {
+      // Por defeito o limite é 1 MB, o que rejeitava uploads de documentos
+      // (BI, carta de condução, licenças) em qualidade normal de foto.
+      bodySizeLimit: '10mb',
+    },
+  },
 };
 
 export default nextConfig;

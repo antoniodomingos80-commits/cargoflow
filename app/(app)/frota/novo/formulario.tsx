@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { criarVeiculo, type EstadoVeiculo } from '@/lib/frota/actions';
@@ -12,10 +12,26 @@ import { AlertCircle } from 'lucide-react';
 
 const estadoInicial: EstadoVeiculo = {};
 
-function Botao() {
+function Botao({
+  formRef,
+  formAction,
+}: {
+  formRef: React.RefObject<HTMLFormElement>;
+  formAction: (formData: FormData) => void;
+}) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" loading={pending}>
+    <Button
+      type="submit"
+      loading={pending}
+      onClick={(e) => {
+        if (!pending && formRef.current) {
+          e.preventDefault();
+          const dados = new FormData(formRef.current);
+          formAction(dados);
+        }
+      }}
+    >
       Registar veículo
     </Button>
   );
@@ -23,9 +39,10 @@ function Botao() {
 
 export function FormularioVeiculo() {
   const [estado, formAction] = useActionState(criarVeiculo, estadoInicial);
+  const formRef = useRef<HTMLFormElement>(null);
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form ref={formRef} action={formAction} className="space-y-6">
       {estado.erro && (
         <div
           role="alert"
@@ -139,7 +156,7 @@ export function FormularioVeiculo() {
         <Link href="/frota" className="text-sm text-slate-500 hover:text-navy-600">
           Cancelar
         </Link>
-        <Botao />
+        <Botao formRef={formRef} formAction={formAction} />
       </div>
     </form>
   );
