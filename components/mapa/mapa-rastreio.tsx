@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
@@ -24,7 +24,7 @@ function criarIcone(cor: string, simbolo: string) {
       <text x="16" y="20" font-size="12" text-anchor="middle" fill="${cor}" font-family="sans-serif" font-weight="bold">${simbolo}</text>
     </svg>`;
   return L.icon({
-    iconUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
+    iconUrl: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`,
     iconSize: [32, 42],
     iconAnchor: [16, 42],
     popupAnchor: [0, -38],

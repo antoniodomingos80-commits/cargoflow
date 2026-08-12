@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -52,10 +52,20 @@ export async function listarMensagens(conversaId: string): Promise<Mensagem[]> {
   return (data ?? []) as Mensagem[];
 }
 
+/**
+ * Marca a conversa como lida.
+ *
+ * NOTA: esta função é chamada diretamente durante a renderização da página
+ * de conversa (`app/(app)/mensagens/[id]/page.tsx`), não a partir de uma
+ * Server Action disparada por um clique. O Next.js não permite chamar
+ * `revalidatePath` nesse contexto — rebentava a página com um erro 500
+ * ("used revalidatePath ... during render which is unsupported").
+ * Por isso já não invalidamos aqui a cache de '/mensagens'; a lista voltará
+ * a atualizar-se sozinha da próxima vez que essa página carregar.
+ */
 export async function marcarLida(conversaId: string) {
   const supabase = createClient();
   await supabase.rpc('cf_marcar_lida', { p_conversation_id: conversaId });
-  revalidatePath('/mensagens');
 }
 
 export async function enviarMensagem(formData: FormData) {
