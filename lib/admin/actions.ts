@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -61,12 +61,9 @@ export async function verificacoesPendentes(): Promise<VerificacaoPendente[]> {
   await exigirAdmin();
   const supabase = getAdminSupabase();
 
-  // NOTA: a função RPC cf_admin_verificacoes_pendentes foi removida deste fluxo
-  // porque devolvia sempre uma lista vazia mesmo com utilizadores pendentes reais,
-  // escondendo-os da equipa de administração. Usamos sempre a query direta.
   const { data: utilizadores, error: erroUtilizadores } = await supabase
     .from('users')
-    .select('id, full_name, email, phone, role, created_at, tenant_id, tenant:tenants(id, name, type, tax_id), vehicles:vehicles(id), documents:documents(id)')
+    .select('id, full_name, email, phone, role, created_at, tenant_id, tenant:tenants(id, name, type, tax_id)')
     .eq('verification', 'PENDING')
     .order('created_at', { ascending: false });
 
@@ -74,6 +71,26 @@ export async function verificacoesPendentes(): Promise<VerificacaoPendente[]> {
     console.error('Erro ao carregar verificações pendentes:', erroUtilizadores.message);
     return [];
   }
+
+  const tenantIds = [...new Set((utilizadores ?? []).map((u: any) => u.tenant_id).filter(Boolean))];
+
+  const { data: documentos } = tenantIds.length
+    ? await supabase.from('documents').select('tenant_id, id').in('tenant_id', tenantIds)
+    : { data: [] as any[] };
+
+  const { data: veiculos } = tenantIds.length
+    ? await supabase.from('vehicles').select('tenant_id, id').in('tenant_id', tenantIds)
+    : { data: [] as any[] };
+
+  const contagemDocumentos = new Map<string, number>();
+  (documentos ?? []).forEach((doc: any) => {
+    contagemDocumentos.set(doc.tenant_id, (contagemDocumentos.get(doc.tenant_id) ?? 0) + 1);
+  });
+
+  const contagemVeiculos = new Map<string, number>();
+  (veiculos ?? []).forEach((veiculo: any) => {
+    contagemVeiculos.set(veiculo.tenant_id, (contagemVeiculos.get(veiculo.tenant_id) ?? 0) + 1);
+  });
 
   return (utilizadores ?? []).map((utilizador: any) => ({
     user_id: utilizador.id,
@@ -86,8 +103,8 @@ export async function verificacoesPendentes(): Promise<VerificacaoPendente[]> {
     tenant_nome: utilizador.tenant?.name ?? 'Sem nome',
     tenant_tipo: utilizador.tenant?.type ?? 'INDIVIDUAL',
     tax_id: utilizador.tenant?.tax_id ?? null,
-    n_documentos: Array.isArray(utilizador.documents) ? utilizador.documents.length : 0,
-    n_veiculos: Array.isArray(utilizador.vehicles) ? utilizador.vehicles.length : 0,
+    n_documentos: contagemDocumentos.get(utilizador.tenant_id) ?? 0,
+    n_veiculos: contagemVeiculos.get(utilizador.tenant_id) ?? 0,
   })) as VerificacaoPendente[];
 }
 
@@ -152,8 +169,6 @@ export async function decidirVerificacao(
 
   const status = aprovar ? 'APPROVED' : 'REJECTED';
 
-  // NOTA: a função RPC cf_admin_decidir_verificacao foi removida deste fluxo
-  // pelo mesmo motivo do fallback acima — usamos sempre as atualizações diretas.
   const { error: erroUsers } = await supabase
     .from('users')
     .update({
