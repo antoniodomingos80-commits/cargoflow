@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
@@ -12,19 +12,23 @@ import { AlertCircle } from 'lucide-react';
 
 const estadoInicial: EstadoVeiculo = {};
 
-function Botao({ formRef }: { formRef: React.RefObject<HTMLFormElement> }) {
+function Botao({
+  formRef,
+  formAction,
+}: {
+  formRef: React.RefObject<HTMLFormElement>;
+  formAction: (formData: FormData) => void;
+}) {
   const { pending } = useFormStatus();
   return (
     <Button
       type="submit"
       loading={pending}
       onClick={(e) => {
-        // O clique físico neste botão não estava a propagar o submit
-        // nativo do formulário (bug confirmado em testes). Disparamos
-        // o envio explicitamente para garantir que funciona sempre.
-        if (!pending) {
+        if (!pending && formRef.current) {
           e.preventDefault();
-          formRef.current?.requestSubmit();
+          const dados = new FormData(formRef.current);
+          formAction(dados);
         }
       }}
     >
@@ -152,7 +156,7 @@ export function FormularioVeiculo() {
         <Link href="/frota" className="text-sm text-slate-500 hover:text-navy-600">
           Cancelar
         </Link>
-        <Botao formRef={formRef} />
+        <Botao formRef={formRef} formAction={formAction} />
       </div>
     </form>
   );
