@@ -215,3 +215,83 @@ export async function documentosDoTenant(tenantId: string) {
     .order('created_at', { ascending: false });
   return data ?? [];
 }
+// =============================================================================
+// Documentos avulsos — carregados por contas JÁ aprovadas
+//
+// A aprovação inicial de um utilizador (decidirVerificacao) já aprova, de
+// uma só vez, todos os documentos que existiam nesse momento. Mas nada
+// impede um utilizador já aprovado de carregar um documento NOVO mais
+// tarde (ex.: renovar uma carta de condução caducada) — e esse documento
+// nunca aparecia em lado nenhum para revisão, porque só ficava visível na
+// lista de "verificações pendentes", que só mostra utilizadores por
+// aprovar. Esta função e a página /admin/documentos preenchem esse buraco.
+// =============================================================================
+
+export interface DocumentoPendente {
+  id: string;
+  type: string;
+  file_url: string;
+  document_number: string | null;
+  expires_at: string | null;
+  created_at: string;
+  tenant_id: string;
+  tenant_nome: string;
+  utilizador_nome: string | null;
+}
+
+export async function documentosPendentesAvulsos(): Promise<DocumentoPendente[]> {
+  await exigirAdmin();
+  const supabase = getAdminSupabase();
+
+  const { data, error } = await supabase
+    .from('documents')
+    .select(
+      'id, type, file_url, document_number, expires_at, created_at, tenant_id, ' +
+        'tenant:tenants(name), utilizador:users(full_name)',
+    )
+    .eq('verification', 'PENDING')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Erro ao carregar documentos pendentes:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((d: any) => ({
+    id: d.id,
+    type: d.type,
+    file_url: d.file_url,
+    document_number: d.document_number,
+    expires_at: d.expires_at,
+    created_at: d.created_at,
+    tenant_id: d.tenant_id,
+    tenant_nome: d.tenant?.name ?? 'Sem nome',
+    utilizador_nome: d.utilizador?.full_name ?? null,
+  })) as DocumentoPendente[];
+}
+
+export async function decidirDocumentoAvulso(
+  documentoId: string,
+  aprovar: boolean,
+  motivo?: string,
+) {
+  const perfil = await exigirAdmin();
+  const supabase = getAdminSupabase();
+
+  const status = aprovar ? 'APPROVED' : 'REJECTED';
+
+  const { error } = await supabase
+    .from('documents')
+    .update({
+      verification: status,
+      verified_by: perfil.user.id,
+      verified_at: new Date().toISOString(),
+      rejection_reason: aprovar ? null : (motivo ?? 'Documentação incompleta ou não legível'),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', documentoId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath('/admin/documentos');
+}

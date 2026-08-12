@@ -133,6 +133,119 @@ export async function enviarProposta(
   return { sucesso: true };
 }
 
+// =============================================================================
+// Enviar proposta (comerciante → viagem)
+//
+// Direção inversa da anterior: aqui é o comerciante que já viu uma viagem
+// publicada no mercado (`/mercado/viagens/[id]`) e escolhe uma das suas
+// próprias cargas para propor a essa viagem específica. As validações
+// espelham as de enviarProposta, mas trocadas: aqui é a CARGA que tem de
+// pertencer à empresa de quem submete, não a viagem.
+// =============================================================================
+
+export async function enviarPropostaParaViagem(
+  _anterior: EstadoProposta,
+  formData: FormData,
+): Promise<EstadoProposta> {
+  const perfil = await getSessionProfile();
+  if (!perfil) redirect('/entrar');
+
+  if (perfil.user.verification !== 'APPROVED') {
+    return {
+      erro:
+        'Só pode enviar propostas com a conta verificada. ' +
+        'É o que dá confiança à outra parte.',
+    };
+  }
+
+  const amountValue = parseAmount(formData.get('amount')) ?? formData.get('amount');
+
+  const parsed = propostaSchema.safeParse({
+    loadId: formData.get('loadId'),
+    tripId: formData.get('tripId'),
+    amount: amountValue,
+    message: formData.get('message') || '',
+  });
+
+  if (!parsed.success) {
+    return { erros: parsed.error.flatten().fieldErrors };
+  }
+  const d = parsed.data;
+
+  const supabase = createClient();
+
+  // Aqui é a CARGA que tem de ser desta empresa — o inverso de enviarProposta.
+  const { data: carga } = await supabase
+    .from('loads')
+    .select('id, tenant_id, weight_kg, status')
+    .eq('id', d.loadId)
+    .single();
+
+  if (!carga || carga.tenant_id !== perfil.tenant.id) {
+    return { erro: 'Carga inválida.' };
+  }
+  if (!['PUBLISHED', 'NEGOTIATING'].includes(carga.status)) {
+    return { erro: 'Esta carga já não está disponível para propostas.' };
+  }
+
+  const { data: viagem } = await supabase
+    .from('trips')
+    .select('id, available_weight_kg, minimum_price, status')
+    .eq('id', d.tripId)
+    .single();
+
+  if (!viagem) return { erro: 'Viagem inválida.' };
+  if (!['PUBLISHED', 'PARTIALLY_BOOKED'].includes(viagem.status)) {
+    return { erro: 'Esta viagem já não está disponível.' };
+  }
+  if (Number(carga.weight_kg) > Number(viagem.available_weight_kg)) {
+    return {
+      erro: 'Esta viagem já não tem capacidade suficiente para esta carga.',
+    };
+  }
+  if (viagem.minimum_price && d.amount < Number(viagem.minimum_price)) {
+    return {
+      erros: {
+        amount: [
+          `O transportador definiu ${Number(viagem.minimum_price).toLocaleString('pt-AO')} Kz como valor mínimo desta viagem.`,
+        ],
+      },
+    };
+  }
+
+  // Evitar propostas duplicadas pendentes para a mesma carga/viagem
+  const { data: existente } = await supabase
+    .from('offers')
+    .select('id')
+    .eq('load_id', d.loadId)
+    .eq('trip_id', d.tripId)
+    .eq('status', 'PENDING')
+    .maybeSingle();
+
+  if (existente) {
+    return { erro: 'Já tem uma proposta pendente para esta viagem.' };
+  }
+
+  const { error } = await supabase.from('offers').insert({
+    load_id: d.loadId,
+    trip_id: d.tripId,
+    offered_by: perfil.user.id,
+    amount: d.amount,
+    currency: perfil.tenant.default_currency,
+    message: d.message || null,
+    status: 'PENDING',
+    expires_at: new Date(Date.now() + 72 * 3600 * 1000).toISOString(),
+  });
+
+  if (error) {
+    return { erro: traduzirErro(error, 'enviar a proposta') };
+  }
+
+  revalidatePath(`/mercado/viagens/${d.tripId}`);
+  revalidatePath('/cargas');
+  return { sucesso: true };
+}
+
 export async function rejeitarProposta(propostaId: string, motivo?: string) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
