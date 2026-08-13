@@ -4,10 +4,11 @@ import { getSessionProfile } from '@/lib/supabase/server';
 import { obterCarga } from '@/lib/cargas/actions';
 import { obterEstadoRastreio, obterPercurso, obterEventos } from '@/lib/rastreio/actions';
 import {
-  obterProvaEntrega, obterAvaliacoes, urlsAssinados,
+  obterProvaEntrega, obterAvaliacoes, urlsAssinados, listarFotosOperacao,
 } from '@/lib/entrega/actions';
 import { PartilharLocalizacao } from './partilhar-localizacao';
 import { PainelEntrega } from '@/components/entrega/painel-entrega';
+import { GaleriaFotos } from '@/components/entrega/galeria-fotos';
 import { Mapa } from '@/components/mapa';
 import { LOAD_STATUS_LABELS, LOAD_STATUS_BADGE, type Load } from '@/lib/types';
 import { formatDistance } from '@/lib/utils';
@@ -43,11 +44,12 @@ export default async function PaginaRastreio({ params }: { params: Promise<{ id:
   const estado = await obterEstadoRastreio(routeParams.id);
   if (!estado) notFound();
 
-  const [percurso, eventos, prova, avaliacoes] = await Promise.all([
+  const [percurso, eventos, prova, avaliacoes, galeria] = await Promise.all([
     estado.trip_id ? obterPercurso(estado.trip_id) : Promise.resolve([]),
     obterEventos(routeParams.id),
     obterProvaEntrega(routeParams.id),
     obterAvaliacoes(routeParams.id),
+    listarFotosOperacao(routeParams.id),
   ]);
 
   // Os buckets são privados — as imagens precisam de URLs assinados.
@@ -239,6 +241,15 @@ export default async function PaginaRastreio({ params }: { params: Promise<{ id:
             estadoCarga={carga.status}
           />
         )}
+
+      {/* Fotos partilhadas — recolha e entrega, qualquer uma das partes */}
+      {estado.trip_id && (
+        <GaleriaFotos
+          cargaId={carga.id}
+          fotosIniciais={galeria.fotos}
+          urlsIniciais={galeria.urls}
+        />
+      )}
 
       {/* Fecho da operação: prova de entrega, confirmação e avaliações */}
       <PainelEntrega

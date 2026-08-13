@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { UploadAvatar } from '@/components/configuracoes/upload-avatar';
 import {
   atualizarPerfil,
   atualizarEmpresa,
@@ -27,6 +28,8 @@ type Props = {
     fullName: string;
     email: string;
     phone: string;
+    baseCity: string;
+    avatarUrl: string | null;
   };
   empresa: {
     name: string;
@@ -45,6 +48,10 @@ export function FormularioConfiguracoes({ perfil, empresa, podeEditarEmpresa }: 
       <section className="cf-card p-6">
         <h2 className="text-lg font-semibold text-navy-600">Perfil</h2>
         <p className="mt-1 text-sm text-slate-500">Dados pessoais visíveis na plataforma.</p>
+
+        <div className="mt-5">
+          <UploadAvatar avatarUrlInicial={perfil.avatarUrl} nome={perfil.fullName} />
+        </div>
 
         <form action={formPerfil} className="mt-5 space-y-4">
           {estadoPerfil.erro && (
@@ -75,6 +82,15 @@ export function FormularioConfiguracoes({ perfil, empresa, podeEditarEmpresa }: 
             placeholder="+244923456789"
             hint="Opcional. Formato: +244923456789"
             error={estadoPerfil.erros?.phone?.[0]}
+          />
+
+          <Input
+            label="Localização"
+            name="baseCity"
+            defaultValue={perfil.baseCity}
+            placeholder="Ex.: Benguela, Angola"
+            hint="Opcional. Ajuda os parceiros a perceber onde está baseado."
+            error={estadoPerfil.erros?.baseCity?.[0]}
           />
 
           <BotaoGuardar texto="Guardar perfil" />

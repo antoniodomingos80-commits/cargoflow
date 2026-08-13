@@ -44,6 +44,8 @@ export default async function PaginaConfiguracoes() {
           fullName: perfil.user.full_name,
           email: perfil.user.email ?? '',
           phone: perfil.user.phone ?? '',
+          baseCity: (perfil.user as any).base_city ?? '',
+          avatarUrl: (perfil.user as any).avatar_url ?? null,
         }}
         empresa={{
           name: perfil.tenant.name,

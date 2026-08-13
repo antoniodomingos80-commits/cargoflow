@@ -268,3 +268,125 @@ export async function avaliar(params: {
   if (error) throw new Error(error.message);
   revalidatePath(`/rastreio/${params.cargaId}`);
 }
+
+// =============================================================================
+// Fotos de recolha e entrega (galeria partilhada)
+//
+// A prova de entrega formal (proof_of_delivery, acima) é um documento legal
+// — só o transportador a regista, é única por carga, tem assinatura.
+// Isto aqui é diferente: uma galeria simples onde AMBAS as partes podem
+// juntar fotografias em dois momentos (recolha e entrega), sem burocracia.
+// Não substitui a prova formal, complementa-a.
+// =============================================================================
+
+export interface FotoOperacao {
+  id: string;
+  stage: 'PICKUP' | 'DELIVERY';
+  path: string;
+  caption: string | null;
+  uploaded_by_name: string;
+  sou_eu: boolean;
+  created_at: string;
+}
+
+async function exigirParticipante(cargaId: string) {
+  const perfil = await getSessionProfile();
+  if (!perfil) redirect('/entrar');
+
+  const supabase = createClient();
+  const { data: carga } = await supabase
+    .from('loads')
+    .select('id, tenant_id, assigned_trip_id, trip:trips!loads_assigned_trip_id_fkey(tenant_id)')
+    .eq('id', cargaId)
+    .single();
+
+  if (!carga) throw new Error('Carga não encontrada.');
+
+  const tenantTransportador = (carga as any).trip?.tenant_id ?? null;
+  const ehParticipante =
+    carga.tenant_id === perfil.tenant.id || tenantTransportador === perfil.tenant.id;
+
+  if (!ehParticipante) throw new Error('Sem acesso a esta operação.');
+
+  return { perfil, cargaId: carga.id };
+}
+
+export async function listarFotosOperacao(cargaId: string): Promise<{
+  fotos: FotoOperacao[];
+  urls: Record<string, string>;
+}> {
+  const { perfil } = await exigirParticipante(cargaId);
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('shipment_photos')
+    .select('id, stage, path, caption, created_at, uploaded_by, user:users(full_name)')
+    .eq('load_id', cargaId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Erro ao listar fotos da operação:', error.message);
+    return { fotos: [], urls: {} };
+  }
+
+  const fotos: FotoOperacao[] = (data ?? []).map((f: any) => ({
+    id: f.id,
+    stage: f.stage,
+    path: f.path,
+    caption: f.caption,
+    uploaded_by_name: f.user?.full_name ?? 'Utilizador',
+    sou_eu: f.uploaded_by === perfil.user.id,
+    created_at: f.created_at,
+  }));
+
+  const caminhos = fotos.map((f) => f.path);
+  const urls = caminhos.length ? await urlsAssinados('provas-entrega', caminhos) : {};
+
+  return { fotos, urls };
+}
+
+export async function carregarFotoOperacao(
+  cargaId: string,
+  stage: 'PICKUP' | 'DELIVERY',
+  ficheiro: File,
+  caption?: string,
+): Promise<{ erro: string } | { ok: true }> {
+  const { perfil } = await exigirParticipante(cargaId);
+
+  const resultado = await carregarFicheiros('provas-entrega', [ficheiro]);
+  if ('erro' in resultado) return resultado;
+
+  const supabase = createClient();
+  const { error } = await supabase.from('shipment_photos').insert({
+    load_id: cargaId,
+    stage,
+    uploaded_by: perfil.user.id,
+    tenant_id: perfil.tenant.id,
+    path: resultado.caminhos[0],
+    caption: caption?.trim() || null,
+  });
+
+  if (error) {
+    console.error('Erro ao registar foto da operação:', error.message);
+    return { erro: 'Não foi possível guardar a fotografia.' };
+  }
+
+  revalidatePath(`/rastreio/${cargaId}`);
+  return { ok: true };
+}
+
+export async function removerFotoOperacao(cargaId: string, fotoId: string) {
+  const { perfil } = await exigirParticipante(cargaId);
+  const supabase = createClient();
+
+  // Só quem carregou a foto (ou o dono da carga) a pode remover
+  const { error } = await supabase
+    .from('shipment_photos')
+    .delete()
+    .eq('id', fotoId)
+    .eq('load_id', cargaId)
+    .eq('uploaded_by', perfil.user.id);
+
+  if (error) throw new Error('Não foi possível remover a fotografia.');
+  revalidatePath(`/rastreio/${cargaId}`);
+}
