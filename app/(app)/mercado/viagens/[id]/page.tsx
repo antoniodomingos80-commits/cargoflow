@@ -8,6 +8,7 @@ import { VEHICLE_TYPE_LABELS } from '@/lib/types';
 import { formatCurrency, formatWeight } from '@/lib/utils';
 import {
   ArrowLeft, ArrowRight, Truck, Snowflake, RotateCcw, AlertTriangle,
+  Phone, MapPin, ShieldCheck, User,
 } from 'lucide-react';
 
 export const metadata = { title: 'Viagem disponível' };
@@ -117,6 +118,59 @@ export default async function PaginaViagemMercado({
           </div>
         </div>
       </header>
+
+      <section className="cf-card p-6">
+        <h2 className="mb-4 font-semibold text-navy-600">Transportador</h2>
+        <div className="flex items-center gap-4">
+          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-brand-100">
+            {viagem.motorista?.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={viagem.motorista.avatar_url}
+                alt={viagem.motorista.full_name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center">
+                <User className="h-6 w-6 text-brand-400" aria-hidden="true" />
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-navy-600">
+                {viagem.motorista?.full_name ?? viagem.tenant?.name ?? 'Transportador'}
+              </p>
+              {viagem.tenant?.verification === 'APPROVED' && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600">
+                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                  Verificado
+                </span>
+              )}
+            </div>
+            {viagem.tenant?.name && viagem.tenant.name !== viagem.motorista?.full_name && (
+              <p className="text-sm text-slate-500">{viagem.tenant.name}</p>
+            )}
+            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+              {viagem.motorista?.base_city && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                  {viagem.motorista.base_city}
+                </span>
+              )}
+              {viagem.motorista?.phone && (
+                <a
+                  href={`tel:${viagem.motorista.phone}`}
+                  className="inline-flex items-center gap-1 text-brand-500 hover:underline"
+                >
+                  <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                  {viagem.motorista.phone}
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="grid gap-6 sm:grid-cols-2">
         <section className="cf-card p-6">

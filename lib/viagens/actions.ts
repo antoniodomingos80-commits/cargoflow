@@ -305,7 +305,9 @@ const SELECT_VIAGEM = `
   *,
   origin:locations!trips_origin_id_fkey (id, name, city, province),
   destination:locations!trips_destination_id_fkey (id, name, city, province),
-  vehicle:vehicles (id, plate, type, max_weight_kg, has_refrigeration)
+  vehicle:vehicles (id, plate, type, max_weight_kg, has_refrigeration),
+  tenant:tenants (id, name, verification),
+  motorista:users!trips_created_by_fkey (id, full_name, phone, avatar_url, base_city)
 `;
 
 /**
