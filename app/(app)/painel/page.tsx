@@ -1,4 +1,4 @@
-import { createClient, getSessionProfile } from '@/lib/supabase/server';
+﻿import { createClient, getSessionProfile } from '@/lib/supabase/server';
 import { indicadoresPlataforma, resumoAdministrativo, verificacoesPendentes } from '@/lib/admin/actions';
 import { ROLE_LABELS } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
@@ -185,7 +185,7 @@ export default async function PaginaPainel() {
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
             Registe fotos, assinatura e notas para fechar cada operação com rastreio claro.
           </p>
-          <Link href="/entregas" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:underline">
+          <Link href="/rastreio" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:underline">
             Ver entregas
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>

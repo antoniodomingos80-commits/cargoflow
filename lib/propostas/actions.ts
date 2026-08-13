@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -75,16 +75,8 @@ export async function enviarProposta(
     return { erro: 'Esta viagem já não está disponível.' };
   }
 
-  // Não permitir propor abaixo do próprio mínimo definido
-  if (viagem.minimum_price && d.amount < Number(viagem.minimum_price)) {
-    return {
-      erros: {
-        amount: [
-          `Definiu ${Number(viagem.minimum_price).toLocaleString('pt-AO')} Kz como valor mínimo desta viagem.`,
-        ],
-      },
-    };
-  }
+  // NOTA: o preco minimo e so referencia (assim o diz o proprio formulario) -- ja nao bloqueia o envio.
+
 
   // A primeira palavra deve ser do transportador. O orçamento do comerciante
   // pode servir como referência para contexto, mas não deve ditar o preço
@@ -203,15 +195,8 @@ export async function enviarPropostaParaViagem(
       erro: 'Esta viagem já não tem capacidade suficiente para esta carga.',
     };
   }
-  if (viagem.minimum_price && d.amount < Number(viagem.minimum_price)) {
-    return {
-      erros: {
-        amount: [
-          `O transportador definiu ${Number(viagem.minimum_price).toLocaleString('pt-AO')} Kz como valor mínimo desta viagem.`,
-        ],
-      },
-    };
-  }
+  // NOTA: idem -- so referencia, nao bloqueia o envio.
+
 
   // Evitar propostas duplicadas pendentes para a mesma carga/viagem
   const { data: existente } = await supabase
