@@ -1,6 +1,6 @@
 'use server';
 
-import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * Matching automático — quando uma carga ou uma viagem é publicada, o
@@ -62,7 +62,12 @@ function formatarPreco(valor: number | null, moeda: string): string {
  */
 export async function notificarMatchesDeCarga(cargaId: string): Promise<void> {
   try {
-    const supabase = createClient();
+    // Cliente admin, não o normal: o matching tem de ver cargas/viagens de
+    // OUTROS tenants mesmo quando já não estão em 'PUBLISHED' (ex.: já em
+    // negociação com outra proposta) — o RLS de leitura pública do
+    // marketplace não cobre esses estados, e bloqueava isto silenciosamente,
+    // sem gerar nenhum erro (a função só via 0 candidatos e saía calada).
+    const supabase = createAdminClient();
 
     const { data: carga } = await supabase
       .from('loads')
@@ -98,7 +103,7 @@ export async function notificarMatchesDeCarga(cargaId: string): Promise<void> {
 
     if (candidatos.length === 0) return;
 
-    const admin = createAdminClient();
+    const admin = supabase;
     const precoTexto = carga.budget_amount
       ? ` · orçamento ${formatarPreco(Number(carga.budget_amount), carga.currency)}`
       : '';
@@ -125,7 +130,8 @@ export async function notificarMatchesDeCarga(cargaId: string): Promise<void> {
  */
 export async function notificarMatchesDeViagem(viagemId: string): Promise<void> {
   try {
-    const supabase = createClient();
+    // Idem — ver nota acima em notificarMatchesDeCarga.
+    const supabase = createAdminClient();
 
     const { data: viagem } = await supabase
       .from('trips')
@@ -161,7 +167,7 @@ export async function notificarMatchesDeViagem(viagemId: string): Promise<void> 
 
     if (candidatos.length === 0) return;
 
-    const admin = createAdminClient();
+    const admin = supabase;
 
     await admin.from('notifications').insert(
       candidatos.map((c) => ({
