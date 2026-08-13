@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
 import { traduzirErro } from '@/lib/erros';
+import { notificarMatchesDeCarga } from '@/lib/matching/actions';
 
 // =============================================================================
 // Validação
@@ -271,6 +272,10 @@ export async function publicarCarga(cargaId: string) {
     .eq('status', 'DRAFT');
 
   if (error) throw new Error('Não foi possível publicar a carga.');
+
+  // Não bloqueia a resposta ao utilizador — o matching é um extra, a
+  // publicação já está feita e confirmada nas linhas acima.
+  await notificarMatchesDeCarga(cargaId);
 
   revalidatePath('/cargas');
   revalidatePath(`/cargas/${cargaId}`);

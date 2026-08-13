@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
 import { traduzirErro } from '@/lib/erros';
+import { notificarMatchesDeViagem } from '@/lib/matching/actions';
 
 const viagemSchema = z
   .object({
@@ -120,6 +121,10 @@ export async function criarViagem(
   if (error || !data) {
     return { erro: traduzirErro(error, 'publicar a viagem') };
   }
+
+  // Não bloqueia o redirect — o matching é um extra, a viagem já está
+  // publicada e confirmada nas linhas acima.
+  await notificarMatchesDeViagem(data.id);
 
   revalidatePath('/viagens');
   revalidatePath('/mercado/viagens');
