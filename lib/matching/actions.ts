@@ -1,6 +1,7 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
+import { enviarWhatsApp } from '@/lib/whatsapp/actions';
 
 /**
  * Matching automático — quando uma carga ou uma viagem é publicada, o
@@ -79,7 +80,7 @@ export async function notificarMatchesDeCarga(cargaId: string): Promise<void> {
 
     const { data: viagens } = await supabase
       .from('trips')
-      .select('id, tenant_id, reference, created_by, available_weight_kg, minimum_price, currency')
+      .select('id, tenant_id, reference, created_by, available_weight_kg, minimum_price, currency, motorista:users!trips_created_by_fkey(phone)')
       .eq('origin_id', carga.origin_id)
       .eq('destination_id', carga.destination_id)
       .in('status', ['PUBLISHED', 'PARTIALLY_BOOKED'])
@@ -118,6 +119,18 @@ export async function notificarMatchesDeCarga(cargaId: string): Promise<void> {
         metadata: { load_id: carga.id, trip_id: v.id, score: v.score },
       })),
     );
+
+    // WhatsApp é um extra sobre a notificação in-app — se falhar (número
+    // não registado na sandbox, Twilio não configurado, etc.), a
+    // notificação já ficou gravada de qualquer forma.
+    await Promise.all(
+      candidatos.map((v) =>
+        enviarWhatsApp(
+          (v as any).motorista?.phone,
+          `🚛 Nova carga compatível com a sua viagem ${v.reference}\n${carga.title} · ${Number(carga.weight_kg)} kg${precoTexto}\nVer: https://cargoflow-theta.vercel.app/mercado/cargas/${carga.id}`,
+        ),
+      ),
+    );
   } catch (erro) {
     // O matching é um extra sobre a publicação, nunca deve impedi-la
     console.error('Erro ao notificar matches de carga:', erro);
@@ -143,7 +156,7 @@ export async function notificarMatchesDeViagem(viagemId: string): Promise<void> 
 
     const { data: cargas } = await supabase
       .from('loads')
-      .select('id, tenant_id, reference, created_by, title, weight_kg, budget_amount, currency')
+      .select('id, tenant_id, reference, created_by, title, weight_kg, budget_amount, currency, comerciante:users!loads_created_by_fkey(phone)')
       .eq('origin_id', viagem.origin_id)
       .eq('destination_id', viagem.destination_id)
       .in('status', ['PUBLISHED', 'NEGOTIATING'])
@@ -169,19 +182,30 @@ export async function notificarMatchesDeViagem(viagemId: string): Promise<void> 
 
     const admin = supabase;
 
+    const espacoTexto = `${Number(viagem.available_weight_kg)} kg disponíveis${
+      viagem.minimum_price
+        ? ` · a partir de ${formatarPreco(Number(viagem.minimum_price), viagem.currency)}`
+        : ''
+    }`;
+
     await admin.from('notifications').insert(
       candidatos.map((c) => ({
         user_id: c.created_by,
         type: 'MATCH_VIAGEM',
         title: `Encontrámos transporte para a sua carga ${c.reference}`,
-        body: `${Number(viagem.available_weight_kg)} kg disponíveis${
-          viagem.minimum_price
-            ? ` · a partir de ${formatarPreco(Number(viagem.minimum_price), viagem.currency)}`
-            : ''
-        }`,
+        body: espacoTexto,
         action_url: `/mercado/viagens/${viagem.id}`,
         metadata: { load_id: c.id, trip_id: viagem.id, score: c.score },
       })),
+    );
+
+    await Promise.all(
+      candidatos.map((c) =>
+        enviarWhatsApp(
+          (c as any).comerciante?.phone,
+          `📦 Encontrámos transporte para a sua carga ${c.reference}\n${espacoTexto}\nVer: https://cargoflow-theta.vercel.app/mercado/viagens/${viagem.id}`,
+        ),
+      ),
     );
   } catch (erro) {
     console.error('Erro ao notificar matches de viagem:', erro);
