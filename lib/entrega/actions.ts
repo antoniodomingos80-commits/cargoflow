@@ -294,13 +294,16 @@ async function exigirParticipante(cargaId: string) {
   if (!perfil) redirect('/entrar');
 
   const supabase = createClient();
-  const { data: carga } = await supabase
+  const { data: carga, error: erroCarga } = await supabase
     .from('loads')
-    .select('id, tenant_id, assigned_trip_id, trip:trips!loads_assigned_trip_id_fkey(tenant_id)')
+    .select('id, tenant_id, assigned_trip_id, trip:trips!fk_loads_assigned_trip(tenant_id)')
     .eq('id', cargaId)
     .single();
 
-  if (!carga) throw new Error('Carga não encontrada.');
+  if (erroCarga || !carga) {
+    console.error('exigirParticipante: erro ao carregar carga', erroCarga?.message);
+    throw new Error('Carga não encontrada.');
+  }
 
   const tenantTransportador = (carga as any).trip?.tenant_id ?? null;
   const ehParticipante =
@@ -315,34 +318,43 @@ export async function listarFotosOperacao(cargaId: string): Promise<{
   fotos: FotoOperacao[];
   urls: Record<string, string>;
 }> {
-  const { perfil } = await exigirParticipante(cargaId);
-  const supabase = createClient();
+  // A galeria é um extra sobre a página de rastreio — um erro aqui nunca
+  // deve impedir o resto da página (mapa, prova de entrega, etc.) de
+  // carregar. Por isso este try/catch envolve tudo, incluindo
+  // exigirParticipante, que de outra forma lançaria e rebentaria a página.
+  try {
+    const { perfil } = await exigirParticipante(cargaId);
+    const supabase = createClient();
 
-  const { data, error } = await supabase
-    .from('shipment_photos')
-    .select('id, stage, path, caption, created_at, uploaded_by, user:users(full_name)')
-    .eq('load_id', cargaId)
-    .order('created_at', { ascending: true });
+    const { data, error } = await supabase
+      .from('shipment_photos')
+      .select('id, stage, path, caption, created_at, uploaded_by, user:users(full_name)')
+      .eq('load_id', cargaId)
+      .order('created_at', { ascending: true });
 
-  if (error) {
-    console.error('Erro ao listar fotos da operação:', error.message);
+    if (error) {
+      console.error('Erro ao listar fotos da operação:', error.message);
+      return { fotos: [], urls: {} };
+    }
+
+    const fotos: FotoOperacao[] = (data ?? []).map((f: any) => ({
+      id: f.id,
+      stage: f.stage,
+      path: f.path,
+      caption: f.caption,
+      uploaded_by_name: f.user?.full_name ?? 'Utilizador',
+      sou_eu: f.uploaded_by === perfil.user.id,
+      created_at: f.created_at,
+    }));
+
+    const caminhos = fotos.map((f) => f.path);
+    const urls = caminhos.length ? await urlsAssinados('provas-entrega', caminhos) : {};
+
+    return { fotos, urls };
+  } catch (erro) {
+    console.error('Erro ao carregar galeria de fotos:', erro);
     return { fotos: [], urls: {} };
   }
-
-  const fotos: FotoOperacao[] = (data ?? []).map((f: any) => ({
-    id: f.id,
-    stage: f.stage,
-    path: f.path,
-    caption: f.caption,
-    uploaded_by_name: f.user?.full_name ?? 'Utilizador',
-    sou_eu: f.uploaded_by === perfil.user.id,
-    created_at: f.created_at,
-  }));
-
-  const caminhos = fotos.map((f) => f.path);
-  const urls = caminhos.length ? await urlsAssinados('provas-entrega', caminhos) : {};
-
-  return { fotos, urls };
 }
 
 export async function carregarFotoOperacao(
