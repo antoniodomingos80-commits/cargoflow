@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
@@ -130,7 +130,7 @@ export async function carregarAvatar(
   const supabase = createClient();
   const extensao = ficheiro.name.split('.').pop()?.toLowerCase() ?? 'jpg';
   // upsert:true — substitui sempre a mesma foto, sem acumular ficheiros órfãos
-  const caminho = `${perfil.user.id}/avatar.${extensao}`;
+  const caminho = `${(perfil.user as any).auth_user_id}/avatar.${extensao}`;
 
   const { error: erroUpload } = await supabase.storage
     .from('avatares')
