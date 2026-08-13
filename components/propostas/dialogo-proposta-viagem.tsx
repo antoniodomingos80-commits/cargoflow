@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { enviarPropostaParaViagem, type EstadoProposta } from '@/lib/propostas/actions';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { InputMoeda } from '@/components/ui/input-moeda';
 import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency } from '@/lib/utils';
 import { Send, X, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -123,14 +123,11 @@ export function DialogoPropostaViagem({
           transportador serve apenas como referência.
         </div>
 
-        <Input
+        <InputMoeda
           label="O seu preço (Kz)"
           name="amount"
-          type="number"
-          min={1000}
-          step={1000}
           required
-          placeholder="Ex.: 420000"
+          placeholder="Ex.: 420 000"
           hint={
             precoMinimo
               ? `O transportador pediu no mínimo ${formatCurrency(precoMinimo, moeda)}.`
