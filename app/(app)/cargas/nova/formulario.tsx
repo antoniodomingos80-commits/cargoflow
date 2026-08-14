@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { CARGO_TYPE_LABELS, VEHICLE_TYPE_LABELS, type CFLocation } from '@/lib/types';
+import { SugestaoPreco } from '@/components/pricing/sugestao-preco';
 import { AlertCircle, Zap } from 'lucide-react';
 
 const estadoInicial: EstadoCarga = {};
@@ -311,6 +312,7 @@ export function FormularioCarga({
             hint="Serve de ponto de partida à negociação. Pode deixar vazio e receber propostas."
             error={estado.erros?.budgetAmount?.[0]}
           />
+          <SugestaoPreco campoPrecoName="budgetAmount" />
         </div>
       </section>
 

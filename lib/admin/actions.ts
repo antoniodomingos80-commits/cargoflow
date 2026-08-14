@@ -128,6 +128,7 @@ export async function indicadoresPlataforma(): Promise<IndicadoresPlataforma | n
     propostasPendentes,
     acordosRes,
     avaliacaoRes,
+    correspondenciasRes,
   ] = await Promise.all([
     supabase.from('users').select('id', { count: 'exact', head: true }).eq('is_active', true),
     supabase
@@ -150,6 +151,7 @@ export async function indicadoresPlataforma(): Promise<IndicadoresPlataforma | n
     supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'PENDING'),
     supabase.from('agreements').select('agreed_amount'),
     supabase.from('reviews').select('rating'),
+    supabase.from('matches').select('id', { count: 'exact', head: true }),
   ]);
 
   const valores = (acordosRes.data ?? []).map((a: any) => Number(a.agreed_amount) || 0);
@@ -169,7 +171,7 @@ export async function indicadoresPlataforma(): Promise<IndicadoresPlataforma | n
     cargas_em_curso: cargasEmCurso.count ?? 0,
     cargas_concluidas: cargasConcluidas.count ?? 0,
     viagens_ativas: viagensAtivas.count ?? 0,
-    correspondencias: 0,
+    correspondencias: correspondenciasRes.count ?? 0,
     propostas_pendentes: propostasPendentes.count ?? 0,
     acordos: (acordosRes.data ?? []).length,
     valor_transacionado: valorTransacionado,

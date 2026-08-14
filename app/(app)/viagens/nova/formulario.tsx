@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { VEHICLE_TYPE_LABELS, type CFLocation, type Vehicle } from '@/lib/types';
 import { AlertCircle, RotateCcw, Lock } from 'lucide-react';
+import { SugestaoPreco } from '@/components/pricing/sugestao-preco';
 
 const estadoInicial: EstadoViagem = {};
 
@@ -269,6 +270,7 @@ export function FormularioViagem({
             hint="Abaixo deste valor não recebe propostas. Deixe vazio para receber todas."
             error={estado.erros?.minimumPrice?.[0]}
           />
+          <SugestaoPreco campoPrecoName="minimumPrice" />
         </div>
       </section>
 
