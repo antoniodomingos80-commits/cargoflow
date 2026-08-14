@@ -76,7 +76,7 @@ export async function GET(
   y -= 16;
   linha(`${dados.operacao.referencia} · ${dados.operacao.titulo}`, { tamanho: 10 });
   y -= 14;
-  linha(`${dados.operacao.origem} → ${dados.operacao.destino}`, { tamanho: 10, cor: cinza });
+  linha(`${dados.operacao.origem} -> ${dados.operacao.destino}`, { tamanho: 10, cor: cinza });
   y -= 50;
 
   // Total
@@ -96,7 +96,7 @@ export async function GET(
   });
 
   y = 60;
-  linha('Documento gerado automaticamente pela CargoFlow — sem validade fiscal formal enquanto', {
+  linha('Documento gerado automaticamente pela CargoFlow - sem validade fiscal formal enquanto', {
     tamanho: 8,
     cor: cinza,
   });
