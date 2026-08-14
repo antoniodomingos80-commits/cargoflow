@@ -4,48 +4,27 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { enviarWhatsApp } from '@/lib/whatsapp/actions';
 
 /**
- * Matching automático — quando uma carga ou uma viagem é publicada, o
- * sistema procura do outro lado (viagens compatíveis para uma carga nova,
- * ou cargas compatíveis para uma viagem nova) e notifica os melhores
- * candidatos, em vez de deixar tudo dependente de alguém ir navegar
- * manualmente no mercado.
+ * Matching — camada de notificação sobre o motor nativo.
  *
- * Não cria nenhuma tabela nova: usa a tabela `notifications` que já existe
- * e já tem UI própria (sino, lista, contagem por ler) — só nunca tinha sido
- * alimentada por este tipo de evento.
+ * A pontuação de compatibilidade JÁ é calculada pela base de dados: os
+ * triggers trg_matches_carga (em loads) e trg_matches_viagem (em trips)
+ * chamam cf_calcular_matches_carga()/cf_pontuar_correspondencia(), que
+ * avaliam geografia real (raio via PostGIS), avaliação do transportador,
+ * proximidade de datas, capacidade e histórico com a empresa — e gravam
+ * tudo na tabela `matches` (score 0-100), sempre que uma carga ou viagem
+ * é publicada ou atualizada.
+ *
+ * Este ficheiro não recalcula nada disso. Só lê os matches que a BD já
+ * preparou e ainda não notificou (matches.notified_at IS NULL — a coluna
+ * já existia, só nunca tinha sido usada), notifica os melhores (in-app +
+ * WhatsApp), e marca como notificados. Correu-se assim uma versão manual
+ * mais simples deste motor que existia só no código da aplicação, com uma
+ * fórmula própria (rota exata + peso + preço) — essa lógica está agora
+ * completamente substituída pela pontuação nativa, mais rica.
  */
 
 const MAX_NOTIFICADOS = 5;
-
-/** Rota tem de coincidir exatamente — é o filtro inicial, antes de pontuar. */
-function scoreCompatibilidade(params: {
-  peso: number;
-  capacidade: number;
-  precoA: number | null;
-  precoB: number | null;
-}): number {
-  const folga = params.capacidade - params.peso;
-  if (folga < 0) return 0; // não cabe — nem é candidato
-
-  let score = 50; // já veio filtrado por rota exata
-
-  // Até 30 pontos por aproveitamento do espaço: penaliza folga excessiva
-  // (viagem muito maior que a carga = pior aproveitamento para o transportador)
-  const proporcaoFolga = params.capacidade > 0 ? folga / params.capacidade : 1;
-  score += Math.max(0, 30 - proporcaoFolga * 30);
-
-  // Até 20 pontos por proximidade de preço, quando ambos os lados o indicam
-  if (params.precoA && params.precoB) {
-    const diferenca = Math.abs(params.precoA - params.precoB);
-    const base = Math.max(params.precoA, params.precoB);
-    const proporcaoDiferenca = base > 0 ? diferenca / base : 0;
-    score += Math.max(0, 20 - proporcaoDiferenca * 20);
-  } else {
-    score += 10; // sem dados de preço de nenhum lado — nem penaliza nem beneficia
-  }
-
-  return Math.round(Math.min(100, score));
-}
+const BASE_URL = 'https://cargoflow-theta.vercel.app';
 
 function formatarPreco(valor: number | null, moeda: string): string {
   if (!valor) return '';
@@ -57,131 +36,102 @@ function formatarPreco(valor: number | null, moeda: string): string {
   }).format(valor);
 }
 
-/**
- * Chamar logo depois de uma carga ficar PUBLISHED.
- * Procura viagens compatíveis de OUTRAS empresas e notifica os transportadores.
- */
+/** Chamar logo depois de uma carga ficar PUBLISHED/NEGOTIATING. */
 export async function notificarMatchesDeCarga(cargaId: string): Promise<void> {
   try {
-    // Cliente admin, não o normal: o matching tem de ver cargas/viagens de
-    // OUTROS tenants mesmo quando já não estão em 'PUBLISHED' (ex.: já em
-    // negociação com outra proposta) — o RLS de leitura pública do
-    // marketplace não cobre esses estados, e bloqueava isto silenciosamente,
-    // sem gerar nenhum erro (a função só via 0 candidatos e saía calada).
-    const supabase = createAdminClient();
+    const admin = createAdminClient();
 
-    const { data: carga } = await supabase
+    const { data: carga } = await admin
       .from('loads')
-      .select('id, tenant_id, reference, title, origin_id, destination_id, weight_kg, budget_amount, currency')
+      .select('id, reference, title, weight_kg')
       .eq('id', cargaId)
       .single();
-
     if (!carga) return;
 
-    const { data: viagens } = await supabase
-      .from('trips')
-      .select('id, tenant_id, reference, created_by, available_weight_kg, minimum_price, currency, motorista:users!trips_created_by_fkey(phone)')
-      .eq('origin_id', carga.origin_id)
-      .eq('destination_id', carga.destination_id)
-      .in('status', ['PUBLISHED', 'PARTIALLY_BOOKED'])
-      .neq('tenant_id', carga.tenant_id);
+    const { data: matches, error } = await admin
+      .from('matches')
+      .select(
+        'id, score, ' +
+          'trip:trips!matches_trip_id_fkey(id, reference, created_by, ' +
+          'motorista:users!trips_created_by_fkey(phone))',
+      )
+      .eq('load_id', cargaId)
+      .is('notified_at', null)
+      .order('score', { ascending: false })
+      .limit(MAX_NOTIFICADOS);
 
-    if (!viagens || viagens.length === 0) return;
+    if (error) {
+      console.error('Erro ao ler matches de carga:', error.message);
+      return;
+    }
+    if (!matches || matches.length === 0) return;
 
-    const candidatos = viagens
-      .map((v) => ({
-        ...v,
-        score: scoreCompatibilidade({
-          peso: Number(carga.weight_kg),
-          capacidade: Number(v.available_weight_kg),
-          precoA: carga.budget_amount ? Number(carga.budget_amount) : null,
-          precoB: v.minimum_price ? Number(v.minimum_price) : null,
-        }),
-      }))
-      .filter((v) => v.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, MAX_NOTIFICADOS);
-
-    if (candidatos.length === 0) return;
-
-    const admin = supabase;
-    const precoTexto = carga.budget_amount
-      ? ` · orçamento ${formatarPreco(Number(carga.budget_amount), carga.currency)}`
-      : '';
+    const linkCarga = `${BASE_URL}/mercado/cargas/${carga.id}`;
 
     await admin.from('notifications').insert(
-      candidatos.map((v) => ({
-        user_id: v.created_by,
+      matches.map((m: any) => ({
+        user_id: m.trip.created_by,
         type: 'MATCH_CARGA',
-        title: `Nova carga compatível com a sua viagem ${v.reference}`,
-        body: `${carga.title} · ${Number(carga.weight_kg)} kg${precoTexto}`,
+        title: `Nova carga compatível com a sua viagem ${m.trip.reference}`,
+        body: `${carga.title} · ${Number(carga.weight_kg)} kg · ${Math.round(Number(m.score))}% de compatibilidade`,
         action_url: `/mercado/cargas/${carga.id}`,
-        metadata: { load_id: carga.id, trip_id: v.id, score: v.score },
+        metadata: { load_id: carga.id, trip_id: m.trip.id, score: m.score },
       })),
     );
 
-    // WhatsApp é um extra sobre a notificação in-app — se falhar (número
-    // não registado na sandbox, Twilio não configurado, etc.), a
-    // notificação já ficou gravada de qualquer forma.
     await Promise.all(
-      candidatos.map((v) =>
+      matches.map((m: any) =>
         enviarWhatsApp(
-          (v as any).motorista?.phone,
-          `🚛 Nova carga compatível com a sua viagem ${v.reference}\n${carga.title} · ${Number(carga.weight_kg)} kg${precoTexto}\nVer: https://cargoflow-theta.vercel.app/mercado/cargas/${carga.id}`,
+          m.trip?.motorista?.phone,
+          `🚛 Nova carga compatível com a sua viagem ${m.trip.reference} (${Math.round(Number(m.score))}%)\n${carga.title} · ${Number(carga.weight_kg)} kg\nVer: ${linkCarga}`,
         ),
       ),
     );
+
+    await admin
+      .from('matches')
+      .update({ notified_at: new Date().toISOString() })
+      .in(
+        'id',
+        matches.map((m: any) => m.id),
+      );
   } catch (erro) {
     // O matching é um extra sobre a publicação, nunca deve impedi-la
     console.error('Erro ao notificar matches de carga:', erro);
   }
 }
 
-/**
- * Chamar logo depois de uma viagem ficar PUBLISHED.
- * Procura cargas compatíveis de OUTRAS empresas e notifica os comerciantes.
- */
+/** Chamar logo depois de uma viagem ficar PUBLISHED/PARTIALLY_BOOKED. */
 export async function notificarMatchesDeViagem(viagemId: string): Promise<void> {
   try {
-    // Idem — ver nota acima em notificarMatchesDeCarga.
-    const supabase = createAdminClient();
+    const admin = createAdminClient();
 
-    const { data: viagem } = await supabase
+    const { data: viagem } = await admin
       .from('trips')
-      .select('id, tenant_id, reference, origin_id, destination_id, available_weight_kg, minimum_price, currency')
+      .select('id, reference, available_weight_kg, minimum_price, currency')
       .eq('id', viagemId)
       .single();
-
     if (!viagem) return;
 
-    const { data: cargas } = await supabase
-      .from('loads')
-      .select('id, tenant_id, reference, created_by, title, weight_kg, budget_amount, currency, comerciante:users!loads_created_by_fkey(phone)')
-      .eq('origin_id', viagem.origin_id)
-      .eq('destination_id', viagem.destination_id)
-      .in('status', ['PUBLISHED', 'NEGOTIATING'])
-      .neq('tenant_id', viagem.tenant_id);
+    const { data: matches, error } = await admin
+      .from('matches')
+      .select(
+        'id, score, ' +
+          'load:loads!matches_load_id_fkey(id, reference, title, weight_kg, created_by, ' +
+          'comerciante:users!loads_created_by_fkey(phone))',
+      )
+      .eq('trip_id', viagemId)
+      .is('notified_at', null)
+      .order('score', { ascending: false })
+      .limit(MAX_NOTIFICADOS);
 
-    if (!cargas || cargas.length === 0) return;
+    if (error) {
+      console.error('Erro ao ler matches de viagem:', error.message);
+      return;
+    }
+    if (!matches || matches.length === 0) return;
 
-    const candidatos = cargas
-      .map((c) => ({
-        ...c,
-        score: scoreCompatibilidade({
-          peso: Number(c.weight_kg),
-          capacidade: Number(viagem.available_weight_kg),
-          precoA: c.budget_amount ? Number(c.budget_amount) : null,
-          precoB: viagem.minimum_price ? Number(viagem.minimum_price) : null,
-        }),
-      }))
-      .filter((c) => c.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, MAX_NOTIFICADOS);
-
-    if (candidatos.length === 0) return;
-
-    const admin = supabase;
-
+    const linkViagem = `${BASE_URL}/mercado/viagens/${viagem.id}`;
     const espacoTexto = `${Number(viagem.available_weight_kg)} kg disponíveis${
       viagem.minimum_price
         ? ` · a partir de ${formatarPreco(Number(viagem.minimum_price), viagem.currency)}`
@@ -189,34 +139,46 @@ export async function notificarMatchesDeViagem(viagemId: string): Promise<void> 
     }`;
 
     await admin.from('notifications').insert(
-      candidatos.map((c) => ({
-        user_id: c.created_by,
+      matches.map((m: any) => ({
+        user_id: m.load.created_by,
         type: 'MATCH_VIAGEM',
-        title: `Encontrámos transporte para a sua carga ${c.reference}`,
-        body: espacoTexto,
+        title: `Encontrámos transporte para a sua carga ${m.load.reference}`,
+        body: `${espacoTexto} · ${Math.round(Number(m.score))}% de compatibilidade`,
         action_url: `/mercado/viagens/${viagem.id}`,
-        metadata: { load_id: c.id, trip_id: viagem.id, score: c.score },
+        metadata: { load_id: m.load.id, trip_id: viagem.id, score: m.score },
       })),
     );
 
     await Promise.all(
-      candidatos.map((c) =>
+      matches.map((m: any) =>
         enviarWhatsApp(
-          (c as any).comerciante?.phone,
-          `📦 Encontrámos transporte para a sua carga ${c.reference}\n${espacoTexto}\nVer: https://cargoflow-theta.vercel.app/mercado/viagens/${viagem.id}`,
+          m.load?.comerciante?.phone,
+          `📦 Encontrámos transporte para a sua carga ${m.load.reference} (${Math.round(Number(m.score))}%)\n${espacoTexto}\nVer: ${linkViagem}`,
         ),
       ),
     );
+
+    await admin
+      .from('matches')
+      .update({ notified_at: new Date().toISOString() })
+      .in(
+        'id',
+        matches.map((m: any) => m.id),
+      );
   } catch (erro) {
     console.error('Erro ao notificar matches de viagem:', erro);
   }
 }
 
 /**
- * Quantas cargas já publicadas por OUTRAS empresas encaixam na rota inversa
- * de uma viagem (destino → origem), com peso compatível. Usada para mostrar
- * ao transportador, antes de decidir publicar um backhaul, se vale a pena —
- * "há 3 cargas à espera nesta rota" pesa mais do que um botão sem contexto.
+ * Quantas cargas já publicadas por OUTRAS empresas encaixariam na rota
+ * inversa de uma viagem (destino → origem), com peso compatível.
+ *
+ * Fica de fora da unificação acima de propósito: isto simula "se eu
+ * criasse agora uma viagem de retorno, quantas cargas encontraria" —
+ * ANTES de essa viagem existir. A tabela `matches` só é preenchida pelos
+ * triggers depois de a viagem já existir, por isso não serve aqui; o
+ * cálculo (rota exata invertida + peso) tem de continuar manual.
  */
 export async function contarCargasCompativeisParaBackhaul(tripId: string): Promise<number> {
   try {
