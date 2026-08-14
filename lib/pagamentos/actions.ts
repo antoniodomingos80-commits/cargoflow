@@ -155,6 +155,7 @@ async function inserirPagamento(pagamento: {
   amount: number;
   currency: string;
   status?: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+  externalId?: string | null;
   externalReference?: string | null;
   meta?: Record<string, unknown>;
   expiresAt?: string | null;
@@ -169,6 +170,7 @@ async function inserirPagamento(pagamento: {
       status: pagamento.status ?? 'PENDING',
       amount: pagamento.amount,
       currency: pagamento.currency,
+      external_id: pagamento.externalId ?? null,
       external_reference: pagamento.externalReference ?? null,
       metadata: pagamento.meta ?? {},
       expires_at: pagamento.expiresAt ?? null,
