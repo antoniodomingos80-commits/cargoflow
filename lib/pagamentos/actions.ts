@@ -4,6 +4,7 @@ import { randomInt } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import Stripe from 'stripe';
 import { createAdminClient, createClient, getSessionProfile } from '@/lib/supabase/server';
+import { criarReferenciaExterna } from '@/lib/pagamentos/appypay';
 
 type AcordoPagamento = {
   id: string;
@@ -267,9 +268,24 @@ export async function gerarReferenciaMulticaixa(
   const valor = valorCobranca(acordo);
   if (valor <= 0) return { erro: 'Este acordo não tem valor para cobrança.' };
 
-  const entidade = process.env.MULTICAIXA_ENTITY || '11333';
-  const referencia = String(randomInt(100000000, 999999999));
   const expira = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  const referenciaInterna = `CF-${acordo.load?.reference ?? acordo.id}`;
+
+  // Tenta sempre criar a referência a sério junto do processador (AppyPay)
+  // primeiro — é a única forma de a referência funcionar de facto quando
+  // um cliente tentar pagá-la num ATM/app real. Só cai para geração
+  // local (aleatória, "de teste") quando a AppyPay não está configurada
+  // — é o que acontece hoje, e é o que mantém o resto da aplicação
+  // testável sem depender de credenciais reais.
+  const externa = await criarReferenciaExterna(
+    Number(valor.toFixed(2)),
+    referenciaInterna,
+    `Acordo ${acordo.load?.reference ?? acordo.id}`,
+  );
+
+  const entidade = externa?.entidade ?? process.env.MULTICAIXA_ENTITY ?? '11333';
+  const referencia = externa?.referencia ?? String(randomInt(100000000, 999999999));
+  const modoTeste = !externa;
 
   await inserirPagamento({
     agreementId: acordo.id,
@@ -277,17 +293,21 @@ export async function gerarReferenciaMulticaixa(
     provider: 'MULTICAIXA',
     amount: Number(valor.toFixed(2)),
     currency: acordo.currency || 'AOA',
+    externalId: externa?.idExterno ?? null,
     externalReference: referencia,
     expiresAt: expira,
     meta: {
       entidade,
+      modo_teste: modoTeste,
       load_reference: acordo.load?.reference ?? '',
       trip_reference: acordo.trip?.reference ?? '',
     },
   });
 
   return {
-    sucesso: 'Referência gerada. Pode pagar no Multicaixa Express ou ATM.',
+    sucesso: modoTeste
+      ? 'Referência de teste gerada (processador ainda não ligado). Pode simular a confirmação, mas não é válida num ATM real.'
+      : 'Referência gerada. Pode pagar no Multicaixa Express ou ATM.',
     referencia: {
       entidade,
       referencia,

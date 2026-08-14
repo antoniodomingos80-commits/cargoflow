@@ -77,6 +77,11 @@ export function CartaoPagamento({
       {estadoMcx.referencia && (
         <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
           <p className="font-semibold text-navy-600">Referência Multicaixa</p>
+          {estadoMcx.sucesso?.startsWith('Referência de teste') && (
+            <p className="mt-1 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+              Modo de teste — não é válida num ATM real
+            </p>
+          )}
           <p className="mt-1">Entidade: <strong>{estadoMcx.referencia.entidade}</strong></p>
           <p>Referência: <strong>{estadoMcx.referencia.referencia}</strong></p>
           <p>Valor: <strong>{formatCurrency(estadoMcx.referencia.valor, estadoMcx.referencia.moeda)}</strong></p>

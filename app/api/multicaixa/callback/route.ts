@@ -23,6 +23,17 @@ export async function POST(request: Request) {
   const callbackSecret = process.env.MULTICAIXA_CALLBACK_SECRET;
   const suppliedSecret = request.headers.get('x-callback-secret');
 
+  // Em produção, o segredo é obrigatório — sem ele, qualquer pessoa que
+  // descubra este endpoint poderia marcar pagamentos como pagos. Antes
+  // disto, o segredo era opcional (só validava SE estivesse definido),
+  // o que era aceitável só enquanto se testava sem processador real
+  // ligado. Continua opcional fora de produção, para não travar testes
+  // locais/preview sem a variável configurada.
+  if (process.env.NODE_ENV === 'production' && !callbackSecret) {
+    console.error('MULTICAIXA_CALLBACK_SECRET não configurado em produção — a recusar callback.');
+    return NextResponse.json({ error: 'Endpoint não configurado.' }, { status: 503 });
+  }
+
   if (callbackSecret && suppliedSecret !== callbackSecret) {
     return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
   }
