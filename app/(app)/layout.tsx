@@ -8,7 +8,7 @@ import { Logo } from '@/components/logo';
 import { ROLE_LABELS, type UserRole } from '@/lib/types';
 import {
   LayoutDashboard, Package, Truck, MapPin, Users, FileText,
-  BarChart3, Settings, LogOut, ShieldAlert, MessageSquare, Wallet,
+  BarChart3, Settings, LogOut, ShieldAlert, MessageSquare, Wallet, PiggyBank,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +28,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/mensagens', rotulo: 'Mensagens', icone: MessageSquare },
     { href: '/rastreio', rotulo: 'Acompanhar', icone: MapPin },
     { href: '/pagamentos', rotulo: 'Pagamentos', icone: Wallet },
+    { href: '/carteira', rotulo: 'Carteira', icone: PiggyBank },
     { href: '/documentos', rotulo: 'Documentos', icone: FileText },
     { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
@@ -38,6 +39,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/mensagens', rotulo: 'Mensagens', icone: MessageSquare },
     { href: '/frota', rotulo: 'Frota', icone: Truck },
     { href: '/pagamentos', rotulo: 'Pagamentos', icone: Wallet },
+    { href: '/carteira', rotulo: 'Carteira', icone: PiggyBank },
     { href: '/documentos', rotulo: 'Documentos', icone: FileText },
     { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
@@ -49,6 +51,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/frota', rotulo: 'Frota', icone: Truck },
     { href: '/motoristas', rotulo: 'Motoristas', icone: Users },
     { href: '/pagamentos', rotulo: 'Pagamentos', icone: Wallet },
+    { href: '/carteira', rotulo: 'Carteira', icone: PiggyBank },
     { href: '/relatorios', rotulo: 'Relatórios', icone: BarChart3 },
     { href: '/documentos', rotulo: 'Documentos', icone: FileText },
     { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
@@ -59,6 +62,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/mercado/cargas', rotulo: 'Procurar carga', icone: Package },
     { href: '/mensagens', rotulo: 'Mensagens', icone: MessageSquare },
     { href: '/pagamentos', rotulo: 'Pagamentos', icone: Wallet },
+    { href: '/carteira', rotulo: 'Carteira', icone: PiggyBank },
     { href: '/rastreio', rotulo: 'Entregas', icone: MapPin },
     { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
