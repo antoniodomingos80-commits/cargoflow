@@ -101,24 +101,34 @@ export async function sugerirPreco(
     const idsDestino = (locaisDestinoProv ?? []).map((l) => l.id);
 
     if (idsOrigem.length > 0 && idsDestino.length > 0) {
-      const { data: historicoRegional } = await supabase
-        .from('agreements')
-        .select(
-          'agreed_amount, load:loads!agreements_load_id_fkey!inner(origin_id, destination_id)',
-        )
-        .in('load.origin_id', idsOrigem)
-        .in('load.destination_id', idsDestino);
+      // Duas queries simples e diretas (sem relações aninhadas) — mais
+      // verboso, mas evita depender de suporte incerto do PostgREST para
+      // filtros combinados dentro de embeds.
+      const { data: cargasRegiao } = await supabase
+        .from('loads')
+        .select('id')
+        .in('origin_id', idsOrigem)
+        .in('destination_id', idsDestino);
 
-      const historicoRegionalValido = (historicoRegional ?? []).filter((h: any) => h.agreed_amount);
-      const valorRegional = precoPorHistorico(historicoRegionalValido);
+      const idsCargas = (cargasRegiao ?? []).map((c) => c.id);
 
-      if (valorRegional !== null) {
-        return {
-          valor: valorRegional,
-          baseadoEm: 'historico_regional',
-          numOperacoes: historicoRegionalValido.length,
-          distanciaKm,
-        };
+      if (idsCargas.length > 0) {
+        const { data: historicoRegional } = await supabase
+          .from('agreements')
+          .select('agreed_amount')
+          .in('load_id', idsCargas);
+
+        const historicoRegionalValido = (historicoRegional ?? []).filter((h) => h.agreed_amount);
+        const valorRegional = precoPorHistorico(historicoRegionalValido);
+
+        if (valorRegional !== null) {
+          return {
+            valor: valorRegional,
+            baseadoEm: 'historico_regional',
+            numOperacoes: historicoRegionalValido.length,
+            distanciaKm,
+          };
+        }
       }
     }
   }
