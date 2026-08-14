@@ -4,7 +4,7 @@ import { createClient, getSessionProfile } from '@/lib/supabase/server';
 
 export interface SugestaoPreco {
   valor: number;
-  baseadoEm: 'historico' | 'formula';
+  baseadoEm: 'historico' | 'historico_regional' | 'formula';
   numOperacoes: number;
   distanciaKm: number | null;
 }
@@ -18,10 +18,15 @@ export interface SugestaoPreco {
  *    origem+destino), usa o preço médio por km desse histórico real —
  *    é a estimativa mais fiável que existe, porque reflete o que outras
  *    empresas realmente pagaram nesta rota.
- * 2) Sem histórico suficiente, cai para uma fórmula simples de referência
- *    (Kz/km + Kz/kg). Os valores de base são um ponto de partida
- *    razoável, não uma verdade absoluta — a ideia é dar um número para
- *    ancorar a negociação, não substituir o critério de quem publica.
+ * 2) Sem isso, mas havendo pelo menos 2 acordos entre a MESMA PROVÍNCIA
+ *    de origem e a MESMA PROVÍNCIA de destino (rota diferente, mas
+ *    geograficamente comparável), usa essa média — ainda reflete preços
+ *    reais pagos, só que numa área mais larga.
+ * 3) Sem histórico nenhum que sirva, cai para uma fórmula simples de
+ *    referência (Kz/km + Kz/kg). Os valores de base são um ponto de
+ *    partida razoável, não uma verdade absoluta — a ideia é dar um
+ *    número para ancorar a negociação, não substituir o critério de
+ *    quem publica.
  */
 export async function sugerirPreco(
   originId: string,
@@ -49,7 +54,14 @@ export async function sugerirPreco(
 
   const distanciaKm = typeof distanciaData === 'number' ? distanciaData : null;
 
-  // Histórico: acordos fechados em cargas com esta rota exata
+  function precoPorHistorico(lista: any[]) {
+    if (lista.length < 2 || !distanciaKm) return null;
+    const precosPorKm = lista.map((h: any) => Number(h.agreed_amount) / Math.max(distanciaKm, 1));
+    const mediaPorKm = precosPorKm.reduce((s, v) => s + v, 0) / precosPorKm.length;
+    return Math.round((mediaPorKm * distanciaKm) / 1000) * 1000;
+  }
+
+  // Nível 1: histórico na rota exata
   const { data: historico } = await supabase
     .from('agreements')
     .select('agreed_amount, load:loads!agreements_load_id_fkey!inner(origin_id, destination_id, weight_kg)')
@@ -57,20 +69,50 @@ export async function sugerirPreco(
     .eq('load.destination_id', destinationId);
 
   const historicoValido = (historico ?? []).filter((h: any) => h.load && h.agreed_amount);
+  const valorExato = precoPorHistorico(historicoValido);
 
-  if (historicoValido.length >= 2 && distanciaKm) {
-    const precosPorKm = historicoValido.map(
-      (h: any) => Number(h.agreed_amount) / Math.max(distanciaKm, 1),
-    );
-    const mediaPorKm = precosPorKm.reduce((s, v) => s + v, 0) / precosPorKm.length;
-    const valor = Math.round((mediaPorKm * distanciaKm) / 1000) * 1000;
-
+  if (valorExato !== null) {
     return {
-      valor,
+      valor: valorExato,
       baseadoEm: 'historico',
       numOperacoes: historicoValido.length,
       distanciaKm,
     };
+  }
+
+  // Nível 2: histórico entre as mesmas províncias de origem/destino,
+  // mesmo que a rota exata não bata — ainda é preço real pago, só numa
+  // área mais larga.
+  const { data: locaisAtuais } = await supabase
+    .from('locations')
+    .select('id, province')
+    .in('id', [originId, destinationId]);
+
+  const provinciaOrigem = locaisAtuais?.find((l) => l.id === originId)?.province;
+  const provinciaDestino = locaisAtuais?.find((l) => l.id === destinationId)?.province;
+
+  if (provinciaOrigem && provinciaDestino) {
+    const { data: historicoRegional } = await supabase
+      .from('agreements')
+      .select(
+        'agreed_amount, load:loads!agreements_load_id_fkey!inner(' +
+          'origem:locations!loads_origin_id_fkey!inner(province), ' +
+          'destino:locations!loads_destination_id_fkey!inner(province))',
+      )
+      .eq('load.origem.province', provinciaOrigem)
+      .eq('load.destino.province', provinciaDestino);
+
+    const historicoRegionalValido = (historicoRegional ?? []).filter((h: any) => h.agreed_amount);
+    const valorRegional = precoPorHistorico(historicoRegionalValido);
+
+    if (valorRegional !== null) {
+      return {
+        valor: valorRegional,
+        baseadoEm: 'historico_regional',
+        numOperacoes: historicoRegionalValido.length,
+        distanciaKm,
+      };
+    }
   }
 
   // Fórmula de referência — sem histórico suficiente nesta rota

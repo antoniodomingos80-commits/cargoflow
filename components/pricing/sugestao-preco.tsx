@@ -23,7 +23,7 @@ export function SugestaoPreco({
   const [aCalcular, setACalcular] = useState(false);
   const [sugestao, setSugestao] = useState<{
     valor: number;
-    baseadoEm: 'historico' | 'formula';
+    baseadoEm: 'historico' | 'historico_regional' | 'formula';
     numOperacoes: number;
   } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -89,9 +89,12 @@ export function SugestaoPreco({
             Sugestão: {formatCurrency(sugestao.valor, moeda)}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">
-            {sugestao.baseadoEm === 'historico'
-              ? `Baseado em ${sugestao.numOperacoes} operações fechadas nesta rota.`
-              : 'Estimativa de referência — sem histórico suficiente nesta rota ainda.'}
+            {sugestao.baseadoEm === 'historico' &&
+              `Baseado em ${sugestao.numOperacoes} operações fechadas nesta rota.`}
+            {sugestao.baseadoEm === 'historico_regional' &&
+              `Baseado em ${sugestao.numOperacoes} operações fechadas nesta região (sem histórico exato nesta rota).`}
+            {sugestao.baseadoEm === 'formula' &&
+              'Estimativa de referência — sem histórico suficiente nesta região ainda.'}
           </p>
           <button
             type="button"
