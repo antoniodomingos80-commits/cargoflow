@@ -207,8 +207,8 @@ export async function operacoesPlataforma() {
   }
   if (!cargas || cargas.length === 0) return [];
 
-  const cargaIds = cargas.map((c) => c.id);
-  const tripIds = cargas.map((c) => c.assigned_trip_id).filter(Boolean) as string[];
+  const cargaIds = cargas.map((c: any) => c.id);
+  const tripIds = cargas.map((c: any) => c.assigned_trip_id).filter(Boolean) as string[];
 
   const [{ data: acordos }, { data: posicoes }] = await Promise.all([
     supabase
