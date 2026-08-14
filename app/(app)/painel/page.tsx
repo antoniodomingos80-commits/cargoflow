@@ -144,23 +144,28 @@ export default async function PaginaPainel() {
         </div>
       )}
 
-      <section className="cf-card border-brand-200 bg-brand-50/60 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
-              Ação recomendada
-            </p>
-            <h2 className="mt-1 font-semibold text-navy-600">{recomendacao.titulo}</h2>
-            <p className="mt-1 text-sm leading-relaxed text-slate-600">{recomendacao.texto}</p>
+      {/* Só faz sentido destacar "publique a primeira X" enquanto for mesmo
+          a primeira vez — antes disto, este bloco aparecia sempre, mesmo
+          com dezenas de cargas/viagens já publicadas. */}
+      {!primeiraOperacaoPublicada && (
+        <section className="cf-card border-brand-200 bg-brand-50/60 p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
+                Ação recomendada
+              </p>
+              <h2 className="mt-1 font-semibold text-navy-600">{recomendacao.titulo}</h2>
+              <p className="mt-1 text-sm leading-relaxed text-slate-600">{recomendacao.texto}</p>
+            </div>
+            <Link href={recomendacao.accao.href} className="inline-flex">
+              <Button size="sm" variant="accent">
+                {recomendacao.accao.rotulo}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </Link>
           </div>
-          <Link href={recomendacao.accao.href} className="inline-flex">
-            <Button size="sm" variant="accent">
-              {recomendacao.accao.rotulo}
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </Link>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="grid gap-4 md:grid-cols-3">
         <div className="cf-card p-5">

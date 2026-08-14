@@ -111,16 +111,142 @@ export async function verificacoesPendentes(): Promise<VerificacaoPendente[]> {
 export async function indicadoresPlataforma(): Promise<IndicadoresPlataforma | null> {
   await exigirAdmin();
   const supabase = getAdminSupabase();
-  const { data } = await supabase.rpc('cf_admin_indicadores');
-  const linha = Array.isArray(data) ? data[0] : data;
-  return (linha ?? null) as IndicadoresPlataforma | null;
+
+  // NOTA: mesmo problema de cf_admin_operacoes — a RPC cf_admin_indicadores()
+  // tem "IF NOT is_platform_admin() THEN RETURN;", que falha sempre quando
+  // chamada com a chave de serviço (sem sessão de utilizador associada),
+  // devolvendo sempre tudo a zero. Substituído por contagens diretas.
+  const [
+    utilizadoresTotal,
+    utilizadoresPendentes,
+    empresas,
+    veiculos,
+    cargasPublicadas,
+    cargasEmCurso,
+    cargasConcluidas,
+    viagensAtivas,
+    propostasPendentes,
+    acordosRes,
+    avaliacaoRes,
+  ] = await Promise.all([
+    supabase.from('users').select('id', { count: 'exact', head: true }).eq('is_active', true),
+    supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('verification', 'PENDING')
+      .eq('is_active', true),
+    supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('loads').select('id', { count: 'exact', head: true }).eq('status', 'PUBLISHED'),
+    supabase
+      .from('loads')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED']),
+    supabase.from('loads').select('id', { count: 'exact', head: true }).eq('status', 'CONFIRMED'),
+    supabase
+      .from('trips')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['PUBLISHED', 'PARTIALLY_BOOKED']),
+    supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'PENDING'),
+    supabase.from('agreements').select('agreed_amount'),
+    supabase.from('reviews').select('rating'),
+  ]);
+
+  const valores = (acordosRes.data ?? []).map((a: any) => Number(a.agreed_amount) || 0);
+  const valorTransacionado = valores.reduce((soma, v) => soma + v, 0);
+
+  const notas = (avaliacaoRes.data ?? []).map((r: any) => Number(r.rating)).filter((n) => !isNaN(n));
+  const avaliacaoMedia = notas.length
+    ? Math.round((notas.reduce((s, n) => s + n, 0) / notas.length) * 100) / 100
+    : null;
+
+  return {
+    utilizadores_total: utilizadoresTotal.count ?? 0,
+    utilizadores_pendentes: utilizadoresPendentes.count ?? 0,
+    empresas: empresas.count ?? 0,
+    veiculos: veiculos.count ?? 0,
+    cargas_publicadas: cargasPublicadas.count ?? 0,
+    cargas_em_curso: cargasEmCurso.count ?? 0,
+    cargas_concluidas: cargasConcluidas.count ?? 0,
+    viagens_ativas: viagensAtivas.count ?? 0,
+    correspondencias: 0,
+    propostas_pendentes: propostasPendentes.count ?? 0,
+    acordos: (acordosRes.data ?? []).length,
+    valor_transacionado: valorTransacionado,
+    avaliacao_media: avaliacaoMedia,
+  } as IndicadoresPlataforma;
 }
 
 export async function operacoesPlataforma() {
   await exigirAdmin();
   const supabase = getAdminSupabase();
-  const { data } = await supabase.rpc('cf_admin_operacoes');
-  return (data ?? []) as any[];
+
+  // NOTA: isto usava a RPC cf_admin_operacoes(), que tem
+  // "IF NOT is_platform_admin() THEN RETURN;" — uma verificação que
+  // depende de auth.uid(), inexistente quando a chamada vem da chave de
+  // serviço (como aqui). Por isso devolvia sempre 0 linhas, mesmo com
+  // dezenas de cargas publicadas — a mesma classe de bug já vista em
+  // cf_admin_verificacoes_pendentes. Substituído por queries diretas,
+  // que não dependem de sessão nenhuma (exigirAdmin() já validou o
+  // admin do lado da aplicação, antes de chegar aqui).
+  const { data: cargas, error } = await supabase
+    .from('loads')
+    .select(
+      'id, reference, title, status, weight_kg, assigned_trip_id, created_at, ' +
+        'origin:locations!loads_origin_id_fkey(city), ' +
+        'destination:locations!loads_destination_id_fkey(city), ' +
+        'criador:users!loads_created_by_fkey(full_name)',
+    )
+    .not('status', 'in', '(DRAFT,CANCELLED,EXPIRED)')
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error) {
+    console.error('Erro ao carregar operações:', error.message);
+    return [];
+  }
+  if (!cargas || cargas.length === 0) return [];
+
+  const cargaIds = cargas.map((c) => c.id);
+  const tripIds = cargas.map((c) => c.assigned_trip_id).filter(Boolean) as string[];
+
+  const [{ data: acordos }, { data: posicoes }] = await Promise.all([
+    supabase
+      .from('agreements')
+      .select('load_id, agreed_amount, transportador:users!agreements_carrier_user_id_fkey(full_name)')
+      .in('load_id', cargaIds),
+    tripIds.length
+      ? supabase
+          .from('tracking_points')
+          .select('trip_id, recorded_at')
+          .in('trip_id', tripIds)
+          .order('recorded_at', { ascending: false })
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+
+  const acordoPorCarga = new Map((acordos ?? []).map((a: any) => [a.load_id, a]));
+  const ultimaPosicaoPorTrip = new Map<string, string>();
+  for (const p of posicoes ?? []) {
+    if (!ultimaPosicaoPorTrip.has(p.trip_id)) ultimaPosicaoPorTrip.set(p.trip_id, p.recorded_at);
+  }
+
+  return cargas.map((c: any) => {
+    const acordo = acordoPorCarga.get(c.id);
+    return {
+      load_id: c.id,
+      reference: c.reference,
+      title: c.title,
+      status: c.status,
+      origin_city: c.origin?.city ?? null,
+      destination_city: c.destination?.city ?? null,
+      weight_kg: c.weight_kg,
+      merchant_nome: c.criador?.full_name ?? null,
+      carrier_nome: acordo?.transportador?.full_name ?? null,
+      valor: acordo?.agreed_amount ?? null,
+      criado_em: c.created_at,
+      ultima_posicao: c.assigned_trip_id ? (ultimaPosicaoPorTrip.get(c.assigned_trip_id) ?? null) : null,
+    };
+  });
 }
 
 export async function resumoAdministrativo(): Promise<ResumoAdministrativo> {
