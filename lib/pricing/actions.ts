@@ -92,26 +92,34 @@ export async function sugerirPreco(
   const provinciaDestino = locaisAtuais?.find((l) => l.id === destinationId)?.province;
 
   if (provinciaOrigem && provinciaDestino) {
-    const { data: historicoRegional } = await supabase
-      .from('agreements')
-      .select(
-        'agreed_amount, load:loads!agreements_load_id_fkey!inner(' +
-          'origem:locations!loads_origin_id_fkey!inner(province), ' +
-          'destino:locations!loads_destination_id_fkey!inner(province))',
-      )
-      .eq('load.origem.province', provinciaOrigem)
-      .eq('load.destino.province', provinciaDestino);
+    const [{ data: locaisOrigemProv }, { data: locaisDestinoProv }] = await Promise.all([
+      supabase.from('locations').select('id').eq('province', provinciaOrigem),
+      supabase.from('locations').select('id').eq('province', provinciaDestino),
+    ]);
 
-    const historicoRegionalValido = (historicoRegional ?? []).filter((h: any) => h.agreed_amount);
-    const valorRegional = precoPorHistorico(historicoRegionalValido);
+    const idsOrigem = (locaisOrigemProv ?? []).map((l) => l.id);
+    const idsDestino = (locaisDestinoProv ?? []).map((l) => l.id);
 
-    if (valorRegional !== null) {
-      return {
-        valor: valorRegional,
-        baseadoEm: 'historico_regional',
-        numOperacoes: historicoRegionalValido.length,
-        distanciaKm,
-      };
+    if (idsOrigem.length > 0 && idsDestino.length > 0) {
+      const { data: historicoRegional } = await supabase
+        .from('agreements')
+        .select(
+          'agreed_amount, load:loads!agreements_load_id_fkey!inner(origin_id, destination_id)',
+        )
+        .in('load.origin_id', idsOrigem)
+        .in('load.destination_id', idsDestino);
+
+      const historicoRegionalValido = (historicoRegional ?? []).filter((h: any) => h.agreed_amount);
+      const valorRegional = precoPorHistorico(historicoRegionalValido);
+
+      if (valorRegional !== null) {
+        return {
+          valor: valorRegional,
+          baseadoEm: 'historico_regional',
+          numOperacoes: historicoRegionalValido.length,
+          distanciaKm,
+        };
+      }
     }
   }
 
