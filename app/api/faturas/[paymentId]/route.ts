@@ -3,8 +3,12 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { obterDadosFatura } from '@/lib/faturas/actions';
 import { formatCurrency } from '@/lib/utils';
 
-export async function GET(_request: Request, { params }: { params: { paymentId: string } }) {
-  const dados = await obterDadosFatura(params.paymentId);
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ paymentId: string }> },
+) {
+  const { paymentId } = await params;
+  const dados = await obterDadosFatura(paymentId);
   if (!dados) {
     return NextResponse.json({ error: 'Fatura não encontrada ou sem acesso.' }, { status: 404 });
   }
