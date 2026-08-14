@@ -90,26 +90,31 @@ export async function criarBackhaul(cargaId: string, tripId?: string | null) {
 
   const supabase = createClient();
 
+  // NOTA: quem reaproveita uma viagem é o TRANSPORTADOR (dono da viagem),
+  // não o comerciante (dono da carga) — a verificação de posse tem de ser
+  // sobre a viagem, não sobre a carga. Isto ficou por detetar até agora
+  // porque nunca uma entrega tinha chegado ao fim para exercitar este
+  // caminho: antes disto, esta ação falhava sempre com "sem acesso".
   const { data: carga } = await supabase
     .from('loads')
-    .select('id, tenant_id, assigned_trip_id')
+    .select('id, assigned_trip_id')
     .eq('id', cargaId)
     .single();
 
-  if (!carga || carga.tenant_id !== perfil.tenant.id) {
-    throw new Error('Carga não encontrada ou sem acesso para reutilizar.');
-  }
+  if (!carga) throw new Error('Carga não encontrada.');
 
   const viagemId = tripId ?? carga.assigned_trip_id;
   if (!viagemId) throw new Error('Não há uma viagem associada para reutilizar.');
 
   const { data: viagem } = await supabase
     .from('trips')
-    .select('id, vehicle_id, driver_id, origin_id, destination_id, available_weight_kg, available_volume_m3, minimum_price, currency, departure_at, estimated_arrival')
+    .select('id, tenant_id, vehicle_id, driver_id, origin_id, destination_id, available_weight_kg, available_volume_m3, minimum_price, currency, departure_at, estimated_arrival')
     .eq('id', viagemId)
     .single();
 
-  if (!viagem) throw new Error('Viagem original não encontrada.');
+  if (!viagem || viagem.tenant_id !== perfil.tenant.id) {
+    throw new Error('Viagem não encontrada ou sem acesso para reutilizar.');
+  }
 
   const partida = viagem.estimated_arrival ?? viagem.departure_at ?? new Date().toISOString();
   const chegada = new Date(new Date(partida).getTime() + 24 * 60 * 60 * 1000).toISOString();
