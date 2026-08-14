@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { createAdminClient, getSessionProfile } from '@/lib/supabase/server';
 
 export interface SugestaoPreco {
   valor: number;
@@ -40,7 +40,12 @@ export async function sugerirPreco(
     return { erro: 'Escolha a origem e o destino primeiro.' };
   }
 
-  const supabase = createClient();
+  // Admin client de propósito: calcular um preço de referência de
+  // mercado exige ver o histórico de TODAS as empresas, não só da
+  // empresa do utilizador — o cliente normal, sujeito a RLS, só devolve
+  // os próprios acordos do tenant, o que fazia esta função cair sempre
+  // na fórmula base, mesmo havendo histórico real disponível.
+  const supabase = createAdminClient();
 
   const { data: distanciaData, error: erroDistancia } = await supabase.rpc(
     'calcular_distancia_km',
