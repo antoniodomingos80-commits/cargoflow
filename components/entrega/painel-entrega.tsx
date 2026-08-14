@@ -1,4 +1,5 @@
 import { confirmarRececao, criarBackhaul, obterResumoFatura } from '@/lib/entrega/actions';
+import { contarCargasCompativeisParaBackhaul } from '@/lib/matching/actions';
 import { Avaliar, Estrelas } from './avaliar';
 import { FormularioEntrega } from './formulario-entrega';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,9 @@ export async function PainelEntrega({
   const podeAvaliar = estadoCarga === 'CONFIRMED' && !jaAvaliei;
   const resumoFatura = await obterResumoFatura(cargaId);
   const podeMostrarBackhaul = ehTransportador && !!tripId && ['CONFIRMED', 'DELIVERED'].includes(estadoCarga);
+  const cargasCompativeisBackhaul = podeMostrarBackhaul && tripId
+    ? await contarCargasCompativeisParaBackhaul(tripId)
+    : 0;
 
   return (
     <>
@@ -238,6 +242,18 @@ export async function PainelEntrega({
           <p className="mt-1 text-sm text-slate-500">
             Publique automaticamente uma viagem de retorno para o mesmo percurso, com a rota invertida.
           </p>
+          {cargasCompativeisBackhaul > 0 ? (
+            <p className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
+              <PackageCheck className="h-4 w-4" aria-hidden="true" />
+              {cargasCompativeisBackhaul === 1
+                ? 'Já há 1 carga à espera de transporte nesta rota.'
+                : `Já há ${cargasCompativeisBackhaul} cargas à espera de transporte nesta rota.`}
+            </p>
+          ) : (
+            <p className="mt-3 text-sm text-slate-400">
+              Ainda não há cargas publicadas nesta rota — mas fica visível assim que aparecerem.
+            </p>
+          )}
           <form
             action={async () => {
               'use server';

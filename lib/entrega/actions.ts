@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { notificarMatchesDeViagem } from '@/lib/matching/actions';
 
 export interface ProvaEntrega {
   pod_id: string;
@@ -135,6 +136,10 @@ export async function criarBackhaul(cargaId: string, tripId?: string | null) {
     .single();
 
   if (error || !novaViagem) throw new Error('Não foi possível publicar a viagem de retorno.');
+
+  // O backhaul já nasce publicado — dispara logo o matching, para os
+  // comerciantes com carga nesta rota serem notificados sem esperar.
+  await notificarMatchesDeViagem(novaViagem.id);
 
   revalidatePath('/viagens');
   revalidatePath('/mercado/viagens');

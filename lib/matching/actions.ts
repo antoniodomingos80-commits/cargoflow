@@ -211,3 +211,38 @@ export async function notificarMatchesDeViagem(viagemId: string): Promise<void> 
     console.error('Erro ao notificar matches de viagem:', erro);
   }
 }
+
+/**
+ * Quantas cargas já publicadas por OUTRAS empresas encaixam na rota inversa
+ * de uma viagem (destino → origem), com peso compatível. Usada para mostrar
+ * ao transportador, antes de decidir publicar um backhaul, se vale a pena —
+ * "há 3 cargas à espera nesta rota" pesa mais do que um botão sem contexto.
+ */
+export async function contarCargasCompativeisParaBackhaul(tripId: string): Promise<number> {
+  try {
+    const admin = createAdminClient();
+
+    const { data: viagem } = await admin
+      .from('trips')
+      .select('tenant_id, origin_id, destination_id, available_weight_kg')
+      .eq('id', tripId)
+      .single();
+
+    if (!viagem) return 0;
+
+    const { data: cargas } = await admin
+      .from('loads')
+      .select('id, weight_kg')
+      .eq('origin_id', viagem.destination_id)
+      .eq('destination_id', viagem.origin_id)
+      .in('status', ['PUBLISHED', 'NEGOTIATING'])
+      .neq('tenant_id', viagem.tenant_id);
+
+    if (!cargas) return 0;
+
+    return cargas.filter((c) => Number(c.weight_kg) <= Number(viagem.available_weight_kg)).length;
+  } catch (erro) {
+    console.error('Erro ao contar cargas compatíveis para backhaul:', erro);
+    return 0;
+  }
+}
