@@ -5,6 +5,18 @@ import { PiggyBank, Clock, CheckCircle2 } from 'lucide-react';
 
 export const metadata = { title: 'Carteira' };
 
+type SearchParams = { sucesso?: string; erro?: string };
+
+function mensagemErro(codigo?: string) {
+  if (!codigo) return null;
+  const mapa: Record<string, string> = {
+    sem_saldo: 'Não há saldo disponível para levantar.',
+    falha_leitura: 'Não foi possível verificar o saldo disponível.',
+    falha_pedido: 'Não foi possível registar o pedido de levantamento.',
+  };
+  return mapa[codigo] ?? 'Não foi possível concluir o pedido.';
+}
+
 function badgeStatus(status: string) {
   const base = 'inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium';
   const mapa: Record<string, string> = {
@@ -28,8 +40,15 @@ function textoStatus(status: string) {
   return mapa[status] ?? status;
 }
 
-export default async function PaginaCarteira() {
+export default async function PaginaCarteira({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const { linhas, saldo } = await listarCarteira();
+  const sp = await searchParams;
+  const erro = mensagemErro(sp.erro);
+  const sucesso = sp.sucesso === 'levantamento';
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -40,6 +59,16 @@ export default async function PaginaCarteira() {
           levantar.
         </p>
       </header>
+
+      {sucesso && (
+        <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
+          Pedido de levantamento registado. A equipa processa a transferência em breve.
+        </div>
+      )}
+
+      {erro && (
+        <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{erro}</div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="cf-card p-5">

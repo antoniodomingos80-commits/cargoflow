@@ -86,7 +86,7 @@ export async function listarCarteira(): Promise<{
  * processar manualmente a transferência e só depois marcar como LEVANTADO
  * (ação a construir a seguir, do lado do admin).
  */
-export async function pedirLevantamento(): Promise<{ erro?: string; sucesso?: string }> {
+export async function pedirLevantamento(): Promise<void> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
@@ -97,9 +97,9 @@ export async function pedirLevantamento(): Promise<{ erro?: string; sucesso?: st
     .eq('tenant_id', perfil.tenant.id)
     .eq('status', 'DISPONIVEL');
 
-  if (erroLeitura) return { erro: 'Não foi possível verificar o saldo disponível.' };
+  if (erroLeitura) redirect('/carteira?erro=falha_leitura');
   if (!disponiveis || disponiveis.length === 0) {
-    return { erro: 'Não há saldo disponível para levantar.' };
+    redirect('/carteira?erro=sem_saldo');
   }
 
   const { error } = await supabase
@@ -110,8 +110,8 @@ export async function pedirLevantamento(): Promise<{ erro?: string; sucesso?: st
       disponiveis.map((d) => d.id),
     );
 
-  if (error) return { erro: 'Não foi possível registar o pedido de levantamento.' };
+  if (error) redirect('/carteira?erro=falha_pedido');
 
   revalidatePath('/carteira');
-  return { sucesso: 'Pedido de levantamento registado. A equipa processa a transferência em breve.' };
+  redirect('/carteira?sucesso=levantamento');
 }
