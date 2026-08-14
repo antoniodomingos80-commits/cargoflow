@@ -183,6 +183,7 @@ function HistoricoPagamentos({ historico }: { historico: PagamentoHistorico[] })
                 <th className="px-5 py-3">Estado</th>
                 <th className="px-5 py-3">Referência</th>
                 <th className="px-5 py-3">Liquidação</th>
+                <th className="px-5 py-3">Fatura</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -209,6 +210,20 @@ function HistoricoPagamentos({ historico }: { historico: PagamentoHistorico[] })
                     {p.external_reference || '-'}
                   </td>
                   <td className="px-5 py-3 text-xs text-slate-500">{extrairLiquidacao(p)}</td>
+                  <td className="px-5 py-3">
+                    {p.status === 'PAID' ? (
+                      <a
+                        href={`/api/faturas/${p.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-brand-600 hover:underline"
+                      >
+                        Descarregar
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
