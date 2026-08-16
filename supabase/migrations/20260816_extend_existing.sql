@@ -1,0 +1,89 @@
+﻿-- =============================================================================
+-- CargoFlow · Trust Layer Foundation — Estender Tabelas Existentes
+-- Data: 16 Agosto 2026
+-- Escopo: ADD colunas a users, documents, drivers, vehicles
+-- IMPORTANTE: Backward compatible, usando IF NOT EXISTS quando possível
+-- =============================================================================
+
+-- =============================================================================
+-- 1. ESTENDER TABELA: users
+-- =============================================================================
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS trust_score NUMERIC(5,2) DEFAULT 50;
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS blocked_reason VARCHAR(255);
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS verification_date TIMESTAMPTZ;
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS verified_by UUID REFERENCES users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_users_is_blocked ON users(is_blocked) WHERE is_blocked = TRUE;
+CREATE INDEX IF NOT EXISTS idx_users_trust_score ON users(trust_score DESC);
+CREATE INDEX IF NOT EXISTS idx_users_verification_date ON users(verification_date DESC);
+CREATE INDEX IF NOT EXISTS idx_users_tenant_blocked ON users(tenant_id, is_blocked);
+
+-- =============================================================================
+-- 2. ESTENDER TABELA: documents
+-- =============================================================================
+
+ALTER TABLE documents
+ADD COLUMN IF NOT EXISTS for_verification BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_documents_verification_pending ON documents(tenant_id, verification, expires_at) 
+WHERE verification = 'PENDING';
+
+-- =============================================================================
+-- 3. ESTENDER TABELA: drivers
+-- =============================================================================
+
+ALTER TABLE drivers
+ADD COLUMN IF NOT EXISTS background_check_date DATE;
+
+ALTER TABLE drivers
+ADD COLUMN IF NOT EXISTS background_check_valid_until DATE;
+
+CREATE INDEX IF NOT EXISTS idx_drivers_background_check_expiry ON drivers(background_check_valid_until) 
+WHERE background_check_valid_until IS NOT NULL;
+
+-- =============================================================================
+-- 4. ESTENDER TABELA: vehicles
+-- =============================================================================
+
+ALTER TABLE vehicles
+ADD COLUMN IF NOT EXISTS insurance_valid_until DATE;
+
+ALTER TABLE vehicles
+ADD COLUMN IF NOT EXISTS inspection_valid_until DATE;
+
+ALTER TABLE vehicles
+ADD COLUMN IF NOT EXISTS inspection_number VARCHAR(100);
+
+ALTER TABLE vehicles
+ADD COLUMN IF NOT EXISTS registration_number VARCHAR(100);
+
+CREATE INDEX IF NOT EXISTS idx_vehicles_insurance_expiry ON vehicles(insurance_valid_until) 
+WHERE insurance_valid_until IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_vehicles_inspection_expiry ON vehicles(inspection_valid_until) 
+WHERE inspection_valid_until IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_vehicles_tenant_insurance ON vehicles(tenant_id, insurance_valid_until);
+
+-- =============================================================================
+-- SUMMARY
+-- =============================================================================
+-- Tabelas estendidas: 4
+-- Colunas adicionadas: 13
+-- Indexes criados: 9
+-- Backward compatible: SIM
+-- =============================================================================

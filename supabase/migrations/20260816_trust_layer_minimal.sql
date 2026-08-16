@@ -1,0 +1,162 @@
+﻿-- =============================================================================
+-- CargoFlow · Trust Layer Foundation — Tabelas Mínimas
+-- Data: 16 Agosto 2026
+-- Escopo: 3 tabelas novas para suportar verificação, blocklist, audit
+-- =============================================================================
+
+-- =============================================================================
+-- FUNÇÃO AUXILIAR: set_updated_at()
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================================================
+-- ENUMS
+-- =============================================================================
+
+-- Enum para audit log actions
+CREATE TYPE verification_action AS ENUM (
+  'DOCUMENT_APPROVED',
+  'DOCUMENT_REJECTED',
+  'DOCUMENT_EXPIRED',
+  'USER_BLOCKED',
+  'USER_UNBLOCKED',
+  'VERIFICATION_APPROVED',
+  'VERIFICATION_REJECTED',
+  'TRUST_SCORE_RECALCULATED',
+  'VERIFICATION_REQUIREMENTS_UPDATED'
+);
+
+-- =============================================================================
+-- 1. USER BLOCKLIST
+-- =============================================================================
+
+CREATE TABLE user_blocklist (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tenant_id         UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  reason            TEXT NOT NULL,
+  reason_code       VARCHAR(50),
+  blocked_by        UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  blocked_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  unblocked_at      TIMESTAMPTZ,
+  unblocked_by      UUID REFERENCES users(id) ON DELETE RESTRICT,
+  is_active         BOOLEAN NOT NULL DEFAULT TRUE,
+  metadata          JSONB DEFAULT '{}'::jsonb,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  CONSTRAINT no_duplicate_active_blocks 
+    UNIQUE (user_id, is_active) 
+    WHERE is_active = TRUE
+);
+
+CREATE INDEX idx_user_blocklist_user_active ON user_blocklist(user_id, is_active);
+CREATE INDEX idx_user_blocklist_tenant ON user_blocklist(tenant_id, is_active);
+CREATE INDEX idx_user_blocklist_blocked_at ON user_blocklist(blocked_at DESC);
+CREATE INDEX idx_user_blocklist_active ON user_blocklist(is_active);
+
+ALTER TABLE user_blocklist ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY user_blocklist_admin_only ON user_blocklist
+FOR ALL
+USING (
+  public.is_platform_admin()
+  OR 
+  (
+    blocked_by = public.current_user_id()
+    AND tenant_id = public.current_tenant_id()
+  )
+)
+WITH CHECK (
+  public.is_platform_admin()
+  OR 
+  (
+    blocked_by = public.current_user_id()
+    AND tenant_id = public.current_tenant_id()
+  )
+);
+
+CREATE TRIGGER trg_user_blocklist_updated_at
+BEFORE UPDATE ON user_blocklist
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- =============================================================================
+-- 2. VERIFICATION REQUIREMENTS
+-- =============================================================================
+
+CREATE TABLE verification_requirements (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  role              user_role NOT NULL,
+  document_type     document_type NOT NULL,
+  is_required       BOOLEAN NOT NULL DEFAULT TRUE,
+  description       TEXT,
+  renewal_frequency_months INTEGER,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE (role, document_type)
+);
+
+CREATE INDEX idx_verification_requirements_role ON verification_requirements(role);
+CREATE INDEX idx_verification_requirements_required ON verification_requirements(is_required);
+
+ALTER TABLE verification_requirements ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY verification_requirements_read_all ON verification_requirements
+FOR SELECT
+USING (auth.role() = 'authenticated');
+
+CREATE POLICY verification_requirements_admin_write ON verification_requirements
+FOR ALL
+USING (public.is_platform_admin())
+WITH CHECK (public.is_platform_admin());
+
+-- =============================================================================
+-- 3. VERIFICATION AUDIT LOG
+-- =============================================================================
+
+CREATE TABLE verification_audit_log (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID REFERENCES users(id) ON DELETE SET NULL,
+  tenant_id         UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  document_id       UUID REFERENCES documents(id) ON DELETE SET NULL,
+  admin_id          UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  action            verification_action NOT NULL,
+  reason            TEXT,
+  comment           TEXT,
+  metadata          JSONB DEFAULT '{}'::jsonb,
+  ip_address        INET,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_verification_audit_log_user ON verification_audit_log(user_id, created_at DESC);
+CREATE INDEX idx_verification_audit_log_tenant ON verification_audit_log(tenant_id, created_at DESC);
+CREATE INDEX idx_verification_audit_log_admin ON verification_audit_log(admin_id, created_at DESC);
+CREATE INDEX idx_verification_audit_log_action ON verification_audit_log(action, created_at DESC);
+CREATE INDEX idx_verification_audit_log_document ON verification_audit_log(document_id);
+CREATE INDEX idx_verification_audit_log_created ON verification_audit_log(created_at DESC);
+
+ALTER TABLE verification_audit_log ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY verification_audit_log_admin_only ON verification_audit_log
+FOR ALL
+USING (public.is_platform_admin())
+WITH CHECK (public.is_platform_admin());
+
+-- =============================================================================
+-- SUMMARY
+-- =============================================================================
+-- Tabelas criadas: 3
+-- Enums criados: 1
+-- Indexes criados: 12
+-- RLS policies: 4
+-- Triggers: 1
+-- =============================================================================
