@@ -343,3 +343,5 @@ npm run build        # build de produção
 npm run typecheck    # verificar tipos sem compilar
 npm run lint         # análise estática
 ```
+#   C a r g o F l o w   -   1 2 / 1 2   F a s e s   C o m p l e t a s  
+ 
