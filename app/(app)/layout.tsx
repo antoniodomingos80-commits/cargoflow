@@ -1,3 +1,11 @@
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { getSessionProfile } from '@/lib/supabase/server';
+import { listarNotificacoes } from '@/lib/notificacoes/actions';
+import { sair } from '../(auth)/actions';
+import { SinoNotificacoes } from '@/components/notificacoes/sino';
+import { Logo } from '@/components/logo';
+import { ROLE_LABELS, type UserRole } from '@/lib/types';
 import {
   LayoutDashboard, Package, Truck, MapPin, Users, FileText,
   BarChart3, Settings, LogOut, ShieldAlert, MessageSquare, Wallet, PiggyBank,
@@ -60,15 +68,16 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
   PLATFORM_ADMIN: [
-  { href: '/painel', rotulo: 'Visão geral', icone: LayoutDashboard },
-  { href: '/admin/utilizadores', rotulo: 'Utilizadores', icone: Users },
-  { href: '/admin/verificacoes', rotulo: 'Verificações', icone: ShieldAlert },
-  { href: '/admin/trust', rotulo: 'Trust Layer', icone: Shield },
-  { href: '/admin/documentos', rotulo: 'Documentos', icone: FileText },
-  { href: '/admin/operacoes', rotulo: 'Operações', icone: Package },
-  { href: '/admin/relatorios', rotulo: 'Relatórios', icone: BarChart3 },
-  { href: '/admin/configuracoes', rotulo: 'Configurações', icone: Settings },
-],
+    { href: '/painel', rotulo: 'Visão geral', icone: LayoutDashboard },
+    { href: '/admin/utilizadores', rotulo: 'Utilizadores', icone: Users },
+    { href: '/admin/verificacoes', rotulo: 'Verificações', icone: ShieldAlert },
+    { href: '/admin/trust', rotulo: 'Trust Layer', icone: Shield },
+    { href: '/admin/documentos', rotulo: 'Documentos', icone: FileText },
+    { href: '/admin/operacoes', rotulo: 'Operações', icone: Package },
+    { href: '/admin/relatorios', rotulo: 'Relatórios', icone: BarChart3 },
+    { href: '/admin/configuracoes', rotulo: 'Configurações', icone: Settings },
+  ],
+};
 
 export default async function LayoutAplicacao({
   children,
