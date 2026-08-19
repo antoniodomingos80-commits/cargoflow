@@ -2,7 +2,10 @@
 ## A logística inteligente começa aqui.
 
 **Dossier para investidores e parceiros**
-Versão 1.0 · Agosto de 2026 · Benguela, Angola
+Versão 1.1 · Agosto de 2026 · Benguela, Angola
+
+> Estado verificado a 19 de Agosto de 2026. A secção 8 descreve o que está
+> efetivamente em produção; o detalhe módulo a módulo está em `ESTADO-REAL.md`.
 
 ---
 
@@ -24,8 +27,13 @@ publica a viagem, o sistema encontra o par. Em cima disso, constrói-se o que
 falta ao setor: rastreamento em tempo real, pagamentos digitais, documentação
 eletrónica e indicadores de desempenho.
 
-**O pedido:** capital e parceiros para levar a plataforma do protótipo ao
-mercado, começando pelo corredor Luanda–Benguela–Huambo.
+**A plataforma está construída e no ar.** O ciclo comercial completo — publicar,
+corresponder, negociar, acordar, transportar, entregar, avaliar — funciona hoje
+em produção, com contas, cargas e acordos reais.
+
+**O pedido:** capital e parceiros para levar a plataforma ao mercado — angariação
+de transportadores, piloto de terreno e operação — começando pelo corredor
+Luanda–Benguela–Huambo.
 
 ---
 
@@ -267,9 +275,30 @@ temperatura, tacógrafos, OBD-II)
 
 ## 8. Estado atual do projeto
 
-**O que existe:** identidade visual completa, protótipos de alta fidelidade de
-todos os ecrãs principais, arquitetura técnica definida, modelo de dados
-desenhado, e especificação funcional detalhada.
+*Levantamento de 19 de Agosto de 2026, verificado contra a produção, o código e
+a base de dados. O quadro completo módulo a módulo está em `ESTADO-REAL.md`.*
+
+**O que está em produção e a ser usado.** A plataforma está no ar em
+`cargoflow-theta.vercel.app`. Funcionam, com dados reais: contas e cinco perfis
+de utilizador, marketplace de cargas e de viagens, motor de correspondência
+automática, propostas e acordos, mensagens, gestão de frota, documentação com
+verificação administrativa, notificações e painel de administração. A
+arquitetura é multi-empresa com isolamento de dados garantido na própria base de
+dados — Row Level Security em 31 tabelas, não apenas na aplicação.
+
+**O que está publicado mas ainda não foi exercido.** Rastreamento GPS, prova de
+entrega e avaliações estão em produção, mas nenhuma operação real passou por
+eles ainda. O que falta é o piloto de terreno, não código.
+
+**O que está escrito e à espera de credenciais.** O módulo de pagamentos
+(Multicaixa e Stripe) está implementado, com geração de referência e webhooks de
+confirmação. Só não está ligado porque as credenciais dependem do registo da
+empresa, que está em curso. As notificações por WhatsApp estão no mesmo estado.
+
+**O que é plano e não está construído:** capacidade offline, autenticação
+multifator, notificações por email e push, e a camada de inteligência artificial
+para correspondência preditiva e preços dinâmicos. Nenhuma destas é necessária
+para operar o corredor inicial.
 
 **Prova de execução:** o promotor concebeu, construiu e colocou em produção uma
 plataforma de gestão empresarial completa (ERP, CRM, loja online, logística,
@@ -277,15 +306,16 @@ recursos humanos e business intelligence) com autenticação multifator,
 arquitetura multi-empresa e infraestrutura cloud — do zero ao ar. A capacidade
 de execução técnica está demonstrada, não é uma promessa.
 
-**O que falta:** capital e parcerias para a construção do núcleo, angariação
-inicial de transportadores e entrada no mercado.
+**O que falta:** capital e parcerias para a angariação de transportadores, o
+piloto de terreno e a operação dos primeiros doze meses. O risco já não é
+construir o núcleo — é chegar ao mercado.
 
 ---
 
 ## 9. O que procuramos
 
-**Capital** para o desenvolvimento do núcleo, angariação inicial e operação nos
-primeiros doze meses.
+**Capital** para a angariação inicial de transportadores, o piloto de terreno e a
+operação nos primeiros doze meses.
 
 **Parceiros estratégicos**, e estes valem tanto como o capital:
 - **Empresas transportadoras** dispostas a ser utilizadores fundadores

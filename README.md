@@ -2,7 +2,8 @@
 
 **A logística inteligente começa aqui.**
 
-Estado: **Fase 1 (MVP) — CONCLUÍDA** ✅
+Estado: **Fase 1 (MVP) — CONCLUÍDA e em produção** ✅
+Estado verificado módulo a módulo: ver `ESTADO-REAL.md` (19 de Agosto de 2026).
 - ✅ Semanas 1–2 — Fundação (autenticação, 4 perfis, design system)
 - ✅ Semanas 3–4 — Marketplace de cargas
 - ✅ Semanas 5–6 — Frota, viagens e **motor de correspondência**
@@ -248,12 +249,15 @@ Transparência é o que faz confiar na recomendação.
 
 ## Próximos passos
 
-| Semanas | Entregável |
+As semanas 5 a 12 estão concluídas — esta secção listava-as como futuras e
+contradizia o cabeçalho. O estado verificado de cada módulo está em
+`ESTADO-REAL.md`.
+
+| Prioridade | Entregável |
 |---|---|
-| 5–6 | Marketplace de viagens + **motor de correspondência** ← momento de demonstração |
-| 7–8 | Negociação (propostas) e chat |
-| 9–10 | Rastreamento GPS com funcionamento offline |
-| 11–12 | Prova de entrega, avaliações, painel de administração |
+| 1 | Piloto de terreno: uma operação real do anúncio à prova de entrega e à avaliação |
+| 2 | Ativar pagamentos (Multicaixa e Stripe) — depende do registo da empresa |
+| 3 | Notificações por email e capacidade offline (ainda não construídas) |
 
 Âmbito detalhado em `../03-MVP-E-ROADMAP.md`.
 

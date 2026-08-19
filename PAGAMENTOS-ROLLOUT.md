@@ -2,6 +2,12 @@
 
 Este guia ativa o módulo completo de pagamentos (Stripe + Multicaixa) já implementado no código.
 
+> **Bloqueado por dependência externa.** O código está pronto, mas as credenciais
+> de Stripe e a entidade Multicaixa exigem uma entidade legal registada com NIF,
+> que a CargoFlow ainda não tem — o registo está em curso. Até lá, os passos
+> abaixo não podem ser concluídos e a tabela `payments` permanece vazia.
+> Não basta colar chaves de API.
+
 ## 1) Aplicar migração no Supabase
 
 No Supabase SQL Editor, executar o ficheiro:

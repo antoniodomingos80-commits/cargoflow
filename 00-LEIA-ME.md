@@ -74,7 +74,7 @@ relatório de mercado e transformam o dossier.
 2. **Refinar o dossier** com os dados primários recolhidos
 3. **Identificar cliente-âncora** — um distribuidor com volume regular
 4. **Conversas com investidores e parceiros**
-5. **Iniciar construção da Fase 1** em paralelo com a angariação
+5. **Piloto de terreno** — a Fase 1 está construída e em produção (ver `ESTADO-REAL.md`); falta exercê-la numa operação real
 
 ---
 

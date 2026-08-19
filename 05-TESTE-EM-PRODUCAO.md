@@ -18,8 +18,10 @@ separadas, não se atrapalham.
 
 ## Parte A — Testar o motor de correspondência
 
-Nunca foi gerada nenhuma correspondência com dados reais. Já existe uma viagem
-publicada compatível — falta uma carga que encaixe nela.
+Já foram geradas correspondências com dados reais (4 à data de 19 de Agosto de
+2026). Este guião serve agora para repetir o ciclo de ponta a ponta — em
+particular o rastreamento, a prova de entrega e a avaliação, que continuam por
+exercer numa operação real.
 
 **Viagem que já existe:** `VG-2026-000005` · Benguela → Luanda · parte a
 2026-08-01 · 5101 kg livres · matrícula LD-45-56

@@ -3,6 +3,13 @@
 Documento de suporte ao dossier de investimento. Destina-se a leitores com
 perfil técnico (CTO, sócio técnico, consultor de due diligence).
 
+> **Este documento descreve a arquitetura-alvo, não o que está construído.**
+> À data de 19 de Agosto de 2026 não estão implementados: autenticação
+> multifator, notificações por email, Web Push e FCM, nem service worker (a
+> aplicação não abre sem rede). A capacidade offline existe apenas para as
+> posições GPS, guardadas em IndexedDB e reenviadas ao recuperar ligação. O
+> estado verificado de cada módulo está em `ESTADO-REAL.md`.
+
 ---
 
 ## 1. Princípios orientadores
@@ -27,7 +34,7 @@ perfil técnico (CTO, sócio técnico, consultor de due diligence).
 
 ### Frontend
 ```
-Next.js 14 (App Router)     framework React com renderização no servidor
+Next.js 16 (App Router)     framework React com renderização no servidor
 TypeScript                  segurança de tipos em todo o código
 Tailwind CSS + shadcn/ui    design system consistente e acessível
 TanStack Query              gestão de estado do servidor e cache
