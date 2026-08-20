@@ -1,11 +1,16 @@
-﻿import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { createClient, getSessionProfile } from '@/lib/supabase/server';
 import { indicadoresPlataforma, resumoAdministrativo, verificacoesPendentes } from '@/lib/admin/actions';
 import { ROLE_LABELS } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
+import { StatCard, KpiRow } from '@/components/ui/stat-card';
+import { SectionCard } from '@/components/ui/section-card';
+import { StatusIndicator } from '@/components/ui/badge';
 import Link from 'next/link';
 import {
-  Package, Truck, MapPin, ShieldAlert, ArrowRight, CheckCircle2, ShieldCheck, PackageCheck, WalletCards,
+  Package, Truck, MapPin, ShieldAlert, ArrowRight, CheckCircle2, ShieldCheck,
+  PackageCheck, WalletCards, FileText, Users, Handshake, Building2, Star,
 } from 'lucide-react';
 
 export const metadata = { title: 'Painel' };
@@ -13,10 +18,10 @@ export const metadata = { title: 'Painel' };
 /**
  * Painel inicial.
  *
- * Nesta fase mostra o estado da conta e os próximos passos. Os indicadores
- * reais (cargas ativas, entregas, ocupação da frota) entram quando os
- * módulos de cargas e viagens estiverem construídos — mostrar cartões com
- * zeros antes disso seria ruído.
+ * Regra desta página: cada número mostrado vem de uma contagem real da base de
+ * dados. Não há variações "vs ontem", percentagens de tendência nem gráficos
+ * de série temporal — não existe histórico para os calcular, e inventá-los
+ * seria mentir com bom aspecto.
  */
 export default async function PaginaPainel() {
   const perfil = await getSessionProfile();
@@ -114,18 +119,29 @@ export default async function PaginaPainel() {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">
-          Olá, {user.full_name.split(' ')[0]}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {ROLE_LABELS[user.role]} · {tenant.name}
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        titulo={`Olá, ${user.full_name.split(' ')[0]}`}
+        descricao={`${ROLE_LABELS[user.role]} · ${tenant.name}`}
+        accoes={
+          <Link href={ehTransportador ? '/viagens/nova' : '/cargas/nova'}>
+            <Button size="sm">
+              {ehTransportador ? 'Publicar viagem' : 'Publicar carga'}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </Link>
+        }
+      />
+
+      <div className="flex items-center gap-4">
+        <StatusIndicator
+          rotulo={porVerificar ? 'Conta por verificar' : 'Conta verificada'}
+          tom={porVerificar ? 'destaque' : 'positivo'}
+        />
+      </div>
 
       {porVerificar && (
-        <div className="cf-card flex items-start gap-4 border-accent-200 bg-accent-50/60 p-5">
+        <div className="cf-card flex flex-col gap-4 border-accent-200 bg-accent-50/60 p-5 sm:flex-row sm:items-start">
           <ShieldAlert className="h-5 w-5 shrink-0 text-accent-600" aria-hidden="true" />
           <div className="flex-1">
             <h2 className="font-semibold text-navy-600">Conta por verificar</h2>
@@ -143,6 +159,53 @@ export default async function PaginaPainel() {
           </div>
         </div>
       )}
+
+      {/* Indicadores — contagens reais da empresa, sem tendências inventadas. */}
+      <KpiRow colunas={4}>
+        <StatCard
+          rotulo="Cargas"
+          valor={cargasCount}
+          contexto={cargasCount === 0 ? 'Nenhuma publicada ainda' : 'Publicadas pela sua empresa'}
+          icone={Package}
+          tom="marca"
+          href="/cargas"
+        />
+        {ehTransportador ? (
+          <StatCard
+            rotulo="Viagens"
+            valor={viagensCount}
+            contexto={viagensCount === 0 ? 'Nenhuma publicada ainda' : 'Publicadas pela sua empresa'}
+            icone={Truck}
+            tom="destaque"
+            href="/viagens"
+          />
+        ) : (
+          <StatCard
+            rotulo="Transporte"
+            valor={viagensCount}
+            contexto="Viagens associadas à sua empresa"
+            icone={Truck}
+            tom="destaque"
+            href="/mercado/viagens"
+          />
+        )}
+        <StatCard
+          rotulo="Frota activa"
+          valor={veiculosCount}
+          contexto={veiculosCount === 0 ? 'Sem veículos registados' : 'Veículos disponíveis'}
+          icone={Truck}
+          tom="neutro"
+          href={ehTransportador ? '/frota' : undefined}
+        />
+        <StatCard
+          rotulo="Documentos"
+          valor={documentosCount}
+          contexto={porVerificar ? 'Verificação por concluir' : 'Documentação aprovada'}
+          icone={FileText}
+          tom={porVerificar ? 'alerta' : 'positivo'}
+          href="/documentos"
+        />
+      </KpiRow>
 
       {/* Só faz sentido destacar "publique a primeira X" enquanto for mesmo
           a primeira vez — antes disto, este bloco aparecia sempre, mesmo
@@ -167,133 +230,114 @@ export default async function PaginaPainel() {
         </section>
       )}
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="cf-card p-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600">
-            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <SectionCard
+          titulo="Checklist de lançamento"
+          descricao={`${progressoChecklist}% completo · os próximos passos estão já visíveis.`}
+        >
+          <div className="mb-5 h-2 overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-brand-500 transition-all"
+              style={{ width: `${progressoChecklist}%` }}
+            />
           </div>
-          <h3 className="mt-4 font-semibold text-navy-600">Confiança e verificação</h3>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Suba os documentos e acelere a publicação de cargas e viagens.
-          </p>
-          <Link href="/documentos" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:underline">
-            Ver documentos
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </Link>
-        </div>
 
-        <div className="cf-card p-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-50 text-accent-600">
-            <PackageCheck className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <h3 className="mt-4 font-semibold text-navy-600">Provas de entrega</h3>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Registe fotos, assinatura e notas para fechar cada operação com rastreio claro.
-          </p>
-          <Link href="/rastreio" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:underline">
-            Ver entregas
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </Link>
-        </div>
-
-        <div className="cf-card p-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-            <WalletCards className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <h3 className="mt-4 font-semibold text-navy-600">Pagamentos protegidos</h3>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Centralize o estado das transações e mantenha o controlo sobre cada pagamento.
-          </p>
-          <Link href="/pagamentos" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:underline">
-            Ver pagamentos
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </Link>
-        </div>
-      </section>
-
-      <section className="cf-card p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-navy-600">Checklist de lançamento</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {progressoChecklist}% completo · os próximos passos estão já visíveis.
-            </p>
-          </div>
-          <div className="rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-600">
-            {progressoChecklist}%
-          </div>
-        </div>
-
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-          <div
-            className="h-full rounded-full bg-brand-500 transition-all"
-            style={{ width: `${progressoChecklist}%` }}
-          />
-        </div>
-
-        <ol className="mt-5 space-y-3">
-          {checklistMvp.map((item) => (
-            <li key={item.titulo} className="flex items-start gap-3 rounded-xl border border-slate-200 p-3">
-              <span
-                className={
-                  item.feito
-                    ? 'mt-0.5 text-green-500'
-                    : 'mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-slate-300'
-                }
-                aria-hidden="true"
+          <ol className="space-y-3">
+            {checklistMvp.map((item) => (
+              <li
+                key={item.titulo}
+                className="flex items-start gap-3 rounded-xl border border-slate-200 p-3"
               >
-                {item.feito && <CheckCircle2 className="h-5 w-5" />}
-              </span>
-              <div>
-                <p className={item.feito ? 'text-sm font-semibold text-slate-400 line-through' : 'text-sm font-semibold text-navy-600'}>
-                  {item.titulo}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">{item.texto}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </section>
+                <span
+                  className={
+                    item.feito
+                      ? 'mt-0.5 text-emerald-500'
+                      : 'mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-slate-300'
+                  }
+                  aria-hidden="true"
+                >
+                  {item.feito && <CheckCircle2 className="h-5 w-5" />}
+                </span>
+                <div className="min-w-0">
+                  <p
+                    className={
+                      item.feito
+                        ? 'text-sm font-semibold text-slate-400 line-through'
+                        : 'text-sm font-semibold text-navy-600'
+                    }
+                  >
+                    {item.titulo}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">{item.texto}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </SectionCard>
 
-      <section className="cf-card p-6">
-        <h2 className="font-semibold text-navy-600">Próximos passos</h2>
-        <ol className="mt-5 space-y-4">
-          {passos.map((passo) => (
-            <li key={passo.titulo} className="flex items-start gap-4">
-              <span
-                className={
-                  passo.feito
-                    ? 'mt-0.5 text-green-500'
-                    : 'mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-slate-300'
-                }
-                aria-hidden="true"
-              >
-                {passo.feito && <CheckCircle2 className="h-5 w-5" />}
-              </span>
-              <div className="flex-1">
-                <p
+        <SectionCard titulo="Próximos passos">
+          <ol className="space-y-4">
+            {passos.map((passo) => (
+              <li key={passo.titulo} className="flex items-start gap-4">
+                <span
                   className={
                     passo.feito
-                      ? 'text-sm font-medium text-slate-400 line-through'
-                      : 'text-sm font-semibold text-navy-600'
+                      ? 'mt-0.5 text-emerald-500'
+                      : 'mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-slate-300'
                   }
+                  aria-hidden="true"
                 >
-                  {passo.titulo}
-                </p>
-                <p className="mt-0.5 text-sm text-slate-500">{passo.texto}</p>
-                {passo.accao && (
-                  <Link
-                    href={passo.accao.href}
-                    className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:underline"
+                  {passo.feito && <CheckCircle2 className="h-5 w-5" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className={
+                      passo.feito
+                        ? 'text-sm font-medium text-slate-400 line-through'
+                        : 'text-sm font-semibold text-navy-600'
+                    }
                   >
-                    {passo.accao.rotulo}
-                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Link>
-                )}
-              </div>
-            </li>
-          ))}
-        </ol>
+                    {passo.titulo}
+                  </p>
+                  <p className="mt-0.5 text-sm text-slate-500">{passo.texto}</p>
+                  {passo.accao && (
+                    <Link
+                      href={passo.accao.href}
+                      className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:underline"
+                    >
+                      {passo.accao.rotulo}
+                      <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Link>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </SectionCard>
+      </div>
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <AtalhoCartao
+          href="/documentos"
+          icone={ShieldCheck}
+          titulo="Confiança e verificação"
+          texto="Suba os documentos e acelere a publicação de cargas e viagens."
+          tom="marca"
+        />
+        <AtalhoCartao
+          href="/rastreio"
+          icone={PackageCheck}
+          titulo="Provas de entrega"
+          texto="Registe fotos, assinatura e notas para fechar cada operação."
+          tom="destaque"
+        />
+        <AtalhoCartao
+          href="/pagamentos"
+          icone={WalletCards}
+          titulo="Pagamentos"
+          texto="Centralize o estado das transações e mantenha o controlo."
+          tom="positivo"
+        />
       </section>
 
       {/* Atalhos por perfil */}
@@ -330,7 +374,7 @@ export default async function PaginaPainel() {
           </>
         )}
       </section>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -348,13 +392,8 @@ async function PainelAdministrador({ nome }: { nome: string }) {
   ]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">
-          Olá, {nome.split(' ')[0]}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">Visão geral da plataforma</p>
-      </header>
+    <PageContainer largura="larga">
+      <PageHeader titulo={`Olá, ${nome.split(' ')[0]}`} descricao="Visão geral da plataforma" />
 
       {pendentes.length > 0 && (
         <Link
@@ -378,67 +417,97 @@ async function PainelAdministrador({ nome }: { nome: string }) {
 
       {ind && (
         <>
-          <section>
-            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">
+          <section className="space-y-3">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Ações urgentes
             </h2>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Indicador rotulo="KYC pendente" valor={resumo.verificacoes_pendentes} />
-              <Indicador rotulo="Pagamentos pendentes" valor={resumo.pagamentos_pendentes} />
-              <Indicador rotulo="Documentos por revisar" valor={resumo.documentos_pendentes} />
-            </div>
+            <KpiRow colunas={3}>
+              <StatCard
+                rotulo="KYC pendente"
+                valor={resumo.verificacoes_pendentes}
+                icone={ShieldAlert}
+                tom={resumo.verificacoes_pendentes > 0 ? 'destaque' : 'positivo'}
+                href="/admin/verificacoes"
+              />
+              <StatCard
+                rotulo="Pagamentos pendentes"
+                valor={resumo.pagamentos_pendentes}
+                icone={WalletCards}
+                tom={resumo.pagamentos_pendentes > 0 ? 'alerta' : 'neutro'}
+              />
+              <StatCard
+                rotulo="Documentos por rever"
+                valor={resumo.documentos_pendentes}
+                icone={FileText}
+                tom={resumo.documentos_pendentes > 0 ? 'destaque' : 'neutro'}
+                href="/admin/documentos"
+              />
+            </KpiRow>
           </section>
 
-          <section>
-            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">
+          <section className="space-y-3">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Atividade
             </h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Indicador rotulo="Cargas publicadas" valor={ind.cargas_publicadas} />
-              <Indicador rotulo="Em curso" valor={ind.cargas_em_curso} />
-              <Indicador rotulo="Concluídas" valor={ind.cargas_concluidas} />
-              <Indicador rotulo="Viagens ativas" valor={ind.viagens_ativas} />
-            </div>
+            <KpiRow colunas={4}>
+              <StatCard rotulo="Cargas publicadas" valor={ind.cargas_publicadas} icone={Package} tom="marca" />
+              <StatCard rotulo="Em curso" valor={ind.cargas_em_curso} icone={Truck} tom="destaque" />
+              <StatCard rotulo="Concluídas" valor={ind.cargas_concluidas} icone={PackageCheck} tom="positivo" />
+              <StatCard rotulo="Viagens ativas" valor={ind.viagens_ativas} icone={MapPin} tom="neutro" />
+            </KpiRow>
           </section>
 
-          <section>
-            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">
+          <section className="space-y-3">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Marketplace
             </h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Indicador rotulo="Correspondências" valor={ind.correspondencias} />
-              <Indicador rotulo="Propostas pendentes" valor={ind.propostas_pendentes} />
-              <Indicador rotulo="Acordos fechados" valor={ind.acordos} />
-              <Indicador
+            <KpiRow colunas={4}>
+              <StatCard rotulo="Correspondências" valor={ind.correspondencias} icone={MapPin} tom="marca" />
+              <StatCard rotulo="Propostas pendentes" valor={ind.propostas_pendentes} icone={Handshake} tom="destaque" />
+              <StatCard rotulo="Acordos fechados" valor={ind.acordos} icone={CheckCircle2} tom="positivo" />
+              <StatCard
                 rotulo="Valor transacionado"
                 valor={formatCurrency(Number(ind.valor_transacionado))}
+                icone={WalletCards}
+                tom="neutro"
               />
-            </div>
+            </KpiRow>
           </section>
 
-          <section>
-            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">
+          <section className="space-y-3">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Comunidade
             </h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Indicador rotulo="Utilizadores" valor={ind.utilizadores_total} />
-              <Indicador rotulo="Empresas" valor={ind.empresas} />
-              <Indicador rotulo="Veículos" valor={ind.veiculos} />
-              <Indicador
+            <KpiRow colunas={4}>
+              <StatCard rotulo="Utilizadores" valor={ind.utilizadores_total} icone={Users} tom="marca" href="/admin/utilizadores" />
+              <StatCard rotulo="Empresas" valor={ind.empresas} icone={Building2} tom="neutro" />
+              <StatCard rotulo="Veículos" valor={ind.veiculos} icone={Truck} tom="neutro" />
+              <StatCard
                 rotulo="Avaliação média"
                 valor={ind.avaliacao_media ? `${ind.avaliacao_media} ★` : '—'}
+                contexto={ind.avaliacao_media ? undefined : 'Ainda sem avaliações'}
+                icone={Star}
+                tom={ind.avaliacao_media ? 'positivo' : 'neutro'}
               />
-            </div>
+            </KpiRow>
           </section>
         </>
       )}
 
-      <section className="grid gap-4 sm:grid-cols-2">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <AtalhoCartao
           href="/admin/verificacoes"
           icone={ShieldAlert}
           titulo="Verificações"
           texto="Aprovar ou rejeitar contas e documentos."
+          tom="destaque"
+        />
+        <AtalhoCartao
+          href="/admin/trust"
+          icone={ShieldCheck}
+          titulo="Trust Layer"
+          texto="Requisitos, bloqueios e histórico de auditoria."
+          tom="marca"
         />
         <AtalhoCartao
           href="/admin/operacoes"
@@ -447,16 +516,7 @@ async function PainelAdministrador({ nome }: { nome: string }) {
           texto="Supervisionar todas as cargas da plataforma."
         />
       </section>
-    </div>
-  );
-}
-
-function Indicador({ rotulo, valor }: { rotulo: string; valor: string | number }) {
-  return (
-    <div className="cf-card p-5">
-      <p className="text-xs uppercase tracking-wide text-slate-400">{rotulo}</p>
-      <p className="mt-2 text-2xl font-bold text-navy-600">{valor}</p>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -465,19 +525,27 @@ function AtalhoCartao({
   icone: Icone,
   titulo,
   texto,
+  tom = 'marca',
 }: {
   href: string;
   icone: any;
   titulo: string;
   texto: string;
+  tom?: 'marca' | 'destaque' | 'positivo';
 }) {
+  const cores = {
+    marca: 'bg-brand-50 text-brand-500',
+    destaque: 'bg-accent-50 text-accent-600',
+    positivo: 'bg-emerald-50 text-emerald-600',
+  }[tom];
+
   return (
     <Link href={href} className="cf-card-interactive block p-5">
-      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-500">
+      <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${cores}`}>
         <Icone className="h-5 w-5" aria-hidden="true" />
       </span>
       <h3 className="mt-4 font-semibold text-navy-600">{titulo}</h3>
-      <p className="mt-1 text-sm text-slate-500">{texto}</p>
+      <p className="mt-1 text-sm leading-relaxed text-slate-500">{texto}</p>
     </Link>
   );
 }

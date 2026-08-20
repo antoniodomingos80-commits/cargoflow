@@ -77,6 +77,12 @@ const config: Config = {
           danger: '#DC2626',
         },
       },
+      // 4.5 (18px) é usado em todo o projecto para ícones (`h-4.5 w-4.5`),
+      // mas não existe na escala por omissão do Tailwind — as classes eram
+      // silenciosamente ignoradas e os ícones ficavam nos 24px do lucide.
+      spacing: {
+        '4.5': '1.125rem',
+      },
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
       },
@@ -97,10 +103,16 @@ const config: Config = {
         shimmer: {
           '100%': { transform: 'translateX(100%)' },
         },
+        // Gaveta de navegação em ecrã pequeno.
+        'slide-in': {
+          from: { transform: 'translateX(-100%)' },
+          to: { transform: 'translateX(0)' },
+        },
       },
       animation: {
         'fade-up': 'fade-up .35s ease-out',
         shimmer: 'shimmer 1.6s infinite',
+        'slide-in': 'slide-in .2s ease-out',
       },
     },
   },
