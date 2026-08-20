@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient, createAdminClient, getSessionProfile } from '@/lib/supabase/server';
+import { garantirContaAtiva } from '@/lib/seguranca/conta';
 
 export type LinhaCarteira = {
   id: string;
@@ -89,6 +90,7 @@ export async function listarCarteira(): Promise<{
 export async function pedirLevantamento(): Promise<void> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
   const { data: disponiveis, error: erroLeitura } = await supabase

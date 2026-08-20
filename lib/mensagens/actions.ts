@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { garantirContaAtiva } from '@/lib/seguranca/conta';
 
 export interface Conversa {
   conversation_id: string;
@@ -71,6 +72,7 @@ export async function marcarLida(conversaId: string) {
 export async function enviarMensagem(formData: FormData) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const conversaId = formData.get('conversationId') as string;
   const conteudo = ((formData.get('content') as string) ?? '').trim();

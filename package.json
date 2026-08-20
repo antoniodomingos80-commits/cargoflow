@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "types:supabase": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > lib/database.types.ts"
+    "types:supabase": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > lib/database.types.ts",
+    "test:seguranca": "node tests/seguranca-bloqueio.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

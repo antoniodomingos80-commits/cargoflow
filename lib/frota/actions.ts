@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { garantirContaAtiva } from '@/lib/seguranca/conta';
 import { traduzirErro } from '@/lib/erros';
 
 const veiculoSchema = z.object({
@@ -42,6 +43,7 @@ export async function criarVeiculo(
 ): Promise<EstadoVeiculo> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   if (!PERFIS_COM_FROTA.includes(perfil.user.role)) {
     return { erro: 'O seu perfil não permite registar veículos.' };
@@ -115,6 +117,7 @@ export async function listarVeiculosDisponiveis() {
 export async function desativarVeiculo(veiculoId: string) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
   const { error } = await supabase

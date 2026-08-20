@@ -3,7 +3,8 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
-import { notificarMatchesDeViagem } from '@/lib/matching/actions';
+import { garantirContaAtiva } from '@/lib/seguranca/conta';
+import { notificarMatchesDeViagem } from '@/lib/matching/notificacoes';
 
 export interface ProvaEntrega {
   pod_id: string;
@@ -87,6 +88,7 @@ export async function obterResumoFatura(cargaId: string): Promise<ResumoFatura |
 export async function criarBackhaul(cargaId: string, tripId?: string | null) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
 
@@ -220,6 +222,7 @@ export async function registarEntrega(params: {
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
   const { error } = await supabase.rpc('cf_registar_entrega', {
@@ -243,6 +246,7 @@ export async function registarEntrega(params: {
 export async function confirmarRececao(cargaId: string) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
   const { error } = await supabase.rpc('cf_confirmar_receccao', { p_load_id: cargaId });
@@ -263,6 +267,7 @@ export async function avaliar(params: {
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
   const { error } = await supabase.rpc('cf_avaliar', {

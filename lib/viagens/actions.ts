@@ -4,8 +4,9 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { garantirContaAtiva } from '@/lib/seguranca/conta';
 import { traduzirErro } from '@/lib/erros';
-import { notificarMatchesDeViagem } from '@/lib/matching/actions';
+import { notificarMatchesDeViagem } from '@/lib/matching/notificacoes';
 
 const viagemSchema = z
   .object({
@@ -44,6 +45,7 @@ export async function criarViagem(
 ): Promise<EstadoViagem> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   if (!PERFIS_PODEM_PUBLICAR_VIAGEM.includes(perfil.user.role)) {
     return { erro: 'O seu perfil não permite publicar viagens.' };
@@ -155,6 +157,7 @@ export async function editarViagem(
 ): Promise<EstadoViagem> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const viagemId = String(formData.get('viagemId') ?? '');
   if (!viagemId) return { erro: 'Viagem não identificada.' };
@@ -282,6 +285,7 @@ export async function editarViagem(
 export async function cancelarViagem(viagemId: string) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
   const { error } = await supabase

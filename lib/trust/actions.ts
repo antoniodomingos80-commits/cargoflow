@@ -160,6 +160,30 @@ export async function blockUser(userId: string, motivo: string, codigoMotivo?: s
 
   if (error) throw error;
 
+  // Refletir em `users`. A blocklist é a fonte de verdade, mas o utilizador não
+  // a consegue ler (RLS de administrador) — a barreira operacional em
+  // lib/seguranca/conta.ts lê estas colunas, que viajam no perfil de sessão.
+  // `banned` é o mecanismo legado de /admin/utilizadores, mantido em sincronia
+  // para que os dois painéis nunca discordem.
+  const { error: erroReflexo } = await supabase
+    .from('users')
+    .update({
+      is_blocked: true,
+      blocked_at: data.blocked_at ?? new Date().toISOString(),
+      blocked_reason: texto.slice(0, 255),
+      banned: true,
+      ban_reason: texto,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', alvo.id);
+
+  if (erroReflexo) {
+    // Sem o reflexo o bloqueio não teria efeito operacional. Reverter a entrada
+    // para não deixar um bloqueio que a plataforma ignora.
+    await supabase.from('user_blocklist').delete().eq('id', data.id);
+    throw new Error('Não foi possível aplicar o bloqueio. Nenhuma alteração foi feita.');
+  }
+
   await gravarAuditoria(supabase, {
     userId: alvo.id,
     tenantId: alvo.tenant_id,
@@ -169,6 +193,7 @@ export async function blockUser(userId: string, motivo: string, codigoMotivo?: s
   });
 
   revalidatePath('/admin/trust');
+  revalidatePath('/admin/utilizadores');
   return data;
 }
 
@@ -191,6 +216,38 @@ export async function unblockUser(blockId: string, motivo?: string) {
   if (error) throw error;
   if (!data) throw new Error('Bloqueio não encontrado ou já levantado.');
 
+  // Só limpar o reflexo se não restar nenhum outro bloqueio activo.
+  const { data: restantes } = await supabase
+    .from('user_blocklist')
+    .select('id')
+    .eq('user_id', data.user_id)
+    .eq('is_active', true)
+    .limit(1);
+
+  if (!restantes || restantes.length === 0) {
+    const { error: erroReflexo } = await supabase
+      .from('users')
+      .update({
+        is_blocked: false,
+        blocked_at: null,
+        blocked_reason: null,
+        banned: false,
+        ban_reason: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', data.user_id);
+
+    if (erroReflexo) {
+      // Reverter: manter o bloqueio activo é mais seguro do que deixar a conta
+      // a operar com a blocklist a dizer que está levantada.
+      await supabase
+        .from('user_blocklist')
+        .update({ is_active: true, unblocked_at: null, unblocked_by: null })
+        .eq('id', blockId);
+      throw new Error('Não foi possível levantar o bloqueio. Nenhuma alteração foi feita.');
+    }
+  }
+
   await gravarAuditoria(supabase, {
     userId: data.user_id,
     tenantId: data.tenant_id,
@@ -200,6 +257,7 @@ export async function unblockUser(blockId: string, motivo?: string) {
   });
 
   revalidatePath('/admin/trust');
+  revalidatePath('/admin/utilizadores');
   return data;
 }
 

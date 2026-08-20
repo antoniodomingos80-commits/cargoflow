@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { garantirContaAtiva } from '@/lib/seguranca/conta';
 import { traduzirErro } from '@/lib/erros';
 
 /**
@@ -115,6 +116,7 @@ export async function convidarTransportador(
 ): Promise<EstadoConvite> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const loadId = String(formData.get('loadId') ?? '');
   const tripId = String(formData.get('tripId') ?? '');

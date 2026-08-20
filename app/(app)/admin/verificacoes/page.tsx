@@ -77,7 +77,7 @@ export default async function VerificacoesPage() {
                   <p className="text-sm text-slate-600">Ainda não foram carregados documentos desta conta.</p>
                 ) : (
                   <ul className="space-y-1.5 text-sm text-slate-600">
-                    {u.documentos.slice(0, 4).map((doc) => (
+                    {u.documentos.map((doc) => (
                       <li key={doc.id} className="flex items-center justify-between gap-3 rounded bg-white px-2 py-1.5">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
@@ -102,9 +102,9 @@ export default async function VerificacoesPage() {
                         </span>
                       </li>
                     ))}
-                    {u.documentos.length > 4 && (
-                      <li className="text-xs text-slate-500">+{u.documentos.length - 4} documentos adicionais</li>
-                    )}
+                    <li className="pt-1 text-xs text-slate-500">
+                      A decisão abrange apenas os documentos pendentes listados acima.
+                    </li>
                   </ul>
                 )}
               </div>
@@ -113,7 +113,12 @@ export default async function VerificacoesPage() {
                 <form
                   action={async () => {
                     'use server';
-                    await decidirVerificacao(u.user_id, true);
+                    await decidirVerificacao(
+                      u.user_id,
+                      true,
+                      undefined,
+                      u.documentos.filter((d) => d.verification === 'PENDING').map((d) => d.id),
+                    );
                   }}
                   className="flex-1"
                 >
@@ -128,7 +133,12 @@ export default async function VerificacoesPage() {
                 <form
                   action={async () => {
                     'use server';
-                    await decidirVerificacao(u.user_id, false, 'Documentação incompleta ou não legível');
+                    await decidirVerificacao(
+                      u.user_id,
+                      false,
+                      'Documentação incompleta ou não legível',
+                      u.documentos.filter((d) => d.verification === 'PENDING').map((d) => d.id),
+                    );
                   }}
                   className="flex-1"
                 >

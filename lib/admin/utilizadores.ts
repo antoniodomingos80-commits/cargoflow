@@ -57,6 +57,14 @@ export async function listarUtilizadores() {
   return data ?? [];
 }
 
+/**
+ * Suspende uma conta a partir do painel legado `/admin/utilizadores`.
+ *
+ * Escreve nos três sítios de propósito: a entrada em `user_blocklist` é a fonte
+ * de verdade e o que o painel Trust mostra; `is_blocked` é o estado refletido
+ * que a barreira operacional lê; `banned` mantém a interface antiga coerente.
+ * Suspender aqui e bloquear em `/admin/trust` passam a ser a mesma coisa.
+ */
 export async function suspenderUtilizador(id: string, motivo?: string) {
   const admin = await exigirPlatformAdmin();
 
@@ -65,14 +73,55 @@ export async function suspenderUtilizador(id: string, motivo?: string) {
     throw new Error('Não é possível suspender a própria conta.');
   }
 
+  const texto = motivo?.trim() || 'Suspensão administrativa';
+
+  const { data: alvo, error: erroAlvo } = await supabase
+    .from('users')
+    .select('id, tenant_id')
+    .eq('id', id)
+    .single();
+
+  if (erroAlvo || !alvo) throw new Error('Utilizador não encontrado.');
+
+  const agora = new Date().toISOString();
+
   const { error } = await supabase
     .from('users')
-    .update({ banned: true, ban_reason: motivo ?? null })
+    .update({
+      banned: true,
+      ban_reason: texto,
+      is_blocked: true,
+      blocked_at: agora,
+      blocked_reason: texto.slice(0, 255),
+      updated_at: agora,
+    })
     .eq('id', id);
 
   if (error) throw error;
 
-  await registarAuditoria(id, admin.user.id, 'USER_BLOCKED', motivo);
+  // Registar na fonte de verdade, se ainda não houver bloqueio activo.
+  const { data: existente } = await supabase
+    .from('user_blocklist')
+    .select('id')
+    .eq('user_id', id)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (!existente) {
+    const { error: erroLista } = await supabase.from('user_blocklist').insert({
+      user_id: alvo.id,
+      tenant_id: alvo.tenant_id,
+      reason: texto,
+      reason_code: 'ADMIN_SUSPENSION',
+      blocked_by: admin.user.id,
+      is_active: true,
+    });
+    if (erroLista) {
+      console.error('Falha ao registar na blocklist:', erroLista.message);
+    }
+  }
+
+  await registarAuditoria(id, admin.user.id, 'USER_BLOCKED', texto);
   revalidatePath('/admin/utilizadores');
   revalidatePath('/admin/trust');
   return { success: true };
@@ -80,13 +129,33 @@ export async function suspenderUtilizador(id: string, motivo?: string) {
 
 export async function ativarUtilizador(id: string) {
   const admin = await exigirPlatformAdmin();
+  const agora = new Date().toISOString();
 
   const { error } = await supabase
     .from('users')
-    .update({ banned: false, ban_reason: null })
+    .update({
+      banned: false,
+      ban_reason: null,
+      is_blocked: false,
+      blocked_at: null,
+      blocked_reason: null,
+      updated_at: agora,
+    })
     .eq('id', id);
 
   if (error) throw error;
+
+  // Levantar todos os bloqueios activos na fonte de verdade — caso contrário o
+  // painel Trust continuaria a mostrar a conta como bloqueada.
+  const { error: erroLista } = await supabase
+    .from('user_blocklist')
+    .update({ is_active: false, unblocked_at: agora, unblocked_by: admin.user.id })
+    .eq('user_id', id)
+    .eq('is_active', true);
+
+  if (erroLista) {
+    console.error('Falha ao levantar bloqueios na blocklist:', erroLista.message);
+  }
 
   await registarAuditoria(id, admin.user.id, 'USER_UNBLOCKED');
   revalidatePath('/admin/utilizadores');

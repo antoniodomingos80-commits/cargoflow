@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { garantirContaAtiva } from '@/lib/seguranca/conta';
 import { traduzirErro } from '@/lib/erros';
 import { parseAmount } from '@/lib/utils';
 
@@ -35,6 +36,7 @@ export async function enviarProposta(
 ): Promise<EstadoProposta> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   if (perfil.user.verification !== 'APPROVED') {
     return {
@@ -141,6 +143,7 @@ export async function enviarPropostaParaViagem(
 ): Promise<EstadoProposta> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   if (perfil.user.verification !== 'APPROVED') {
     return {
@@ -234,6 +237,7 @@ export async function enviarPropostaParaViagem(
 export async function rejeitarProposta(propostaId: string, motivo?: string) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
   const { error } = await supabase.rpc('cf_rejeitar_proposta', {
@@ -255,6 +259,7 @@ export async function rejeitarProposta(propostaId: string, motivo?: string) {
 export async function aceitarProposta(propostaId: string) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
   const { data, error } = await supabase.rpc('cf_aceitar_proposta', {
@@ -281,6 +286,7 @@ export async function aceitarProposta(propostaId: string) {
 export async function retirarProposta(propostaId: string) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
   const { error } = await supabase
@@ -304,6 +310,7 @@ export async function contrapropor(
 ): Promise<EstadoProposta> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   if (perfil.user.verification !== 'APPROVED') {
     return {

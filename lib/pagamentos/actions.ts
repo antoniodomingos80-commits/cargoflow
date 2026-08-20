@@ -4,6 +4,7 @@ import { randomInt } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import Stripe from 'stripe';
 import { createAdminClient, createClient, getSessionProfile } from '@/lib/supabase/server';
+import { contaBloqueada } from '@/lib/seguranca/conta';
 import { criarReferenciaExterna } from '@/lib/pagamentos/appypay';
 
 type AcordoPagamento = {
@@ -189,6 +190,10 @@ export async function iniciarPagamentoStripe(formData: FormData) {
   if (!auth) redirect('/pagamentos?erro=sem_permissao');
 
   const { perfil, acordo } = auth;
+  // Ordem: autenticação (obterAcordoAutorizado) → estado da conta → verificação.
+  if (contaBloqueada(perfil)) {
+    redirect('/pagamentos?erro=conta_bloqueada');
+  }
   if (perfil.user.verification !== 'APPROVED') {
     redirect('/pagamentos?erro=kyc_pendente');
   }
@@ -263,6 +268,13 @@ export async function gerarReferenciaMulticaixa(
   if (!auth) return { erro: 'Sem permissão para este acordo.' };
 
   const { perfil, acordo } = auth;
+  if (contaBloqueada(perfil)) {
+    return {
+      erro:
+        'A sua conta está bloqueada e não pode iniciar pagamentos. ' +
+        'Contacte o suporte da CargoFlow.',
+    };
+  }
   if (perfil.user.verification !== 'APPROVED') {
     return { erro: 'Complete a verificação da conta para desbloquear pagamentos.' };
   }
@@ -318,77 +330,4 @@ export async function gerarReferenciaMulticaixa(
       expiraEm: expira,
     },
   };
-}
-
-export async function atualizarPagamentoInterno(params: {
-  paymentId?: string | null;
-  provider: 'STRIPE' | 'MULTICAIXA';
-  externalId?: string | null;
-  externalReference?: string | null;
-  status: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
-  rawPayload?: Record<string, unknown>;
-}) {
-  const admin = createAdminClient();
-  const agora = new Date().toISOString();
-
-  let lookup = admin
-    .from('payments')
-    .select('id, metadata, paid_at, external_id')
-    .eq('provider', params.provider)
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  if (params.paymentId) lookup = lookup.eq('id', params.paymentId);
-  else if (params.externalReference) lookup = lookup.eq('external_reference', params.externalReference);
-  else if (params.externalId) lookup = lookup.eq('external_id', params.externalId);
-  else return;
-
-  const { data: rows, error: lookupError } = await lookup;
-  if (lookupError || !rows || rows.length === 0) {
-    if (lookupError) console.error('Erro ao procurar pagamento:', lookupError.message);
-    return;
-  }
-
-  const atual = rows[0] as {
-    id: string;
-    metadata: Record<string, unknown> | null;
-    paid_at: string | null;
-    external_id: string | null;
-  };
-
-  const metadataAtual =
-    atual.metadata && typeof atual.metadata === 'object' && !Array.isArray(atual.metadata)
-      ? atual.metadata
-      : {};
-
-  const metadata = {
-    ...metadataAtual,
-    reconciliation: {
-      provider: params.provider,
-      status: params.status,
-      updated_at: agora,
-      external_id: params.externalId ?? atual.external_id,
-    },
-    ...(params.rawPayload
-      ? {
-          provider_payload: {
-            ...((metadataAtual.provider_payload as Record<string, unknown> | undefined) ?? {}),
-            [agora]: params.rawPayload,
-          },
-        }
-      : {}),
-  };
-
-  const { error } = await admin
-    .from('payments')
-    .update({
-      status: params.status,
-      external_id: params.externalId ?? atual.external_id,
-      metadata,
-      paid_at: params.status === 'PAID' ? agora : atual.paid_at,
-      updated_at: agora,
-    })
-    .eq('id', atual.id);
-
-  if (error) console.error('Erro ao atualizar pagamento:', error.message);
 }

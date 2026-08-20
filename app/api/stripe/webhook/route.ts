@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { atualizarPagamentoInterno } from '@/lib/pagamentos/actions';
+import { atualizarPagamentoInterno } from '@/lib/pagamentos/reconciliacao';
 
 export async function POST(request: Request) {
   const secretKey = process.env.STRIPE_SECRET_KEY;

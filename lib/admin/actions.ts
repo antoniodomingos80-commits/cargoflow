@@ -277,12 +277,34 @@ export async function resumoAdministrativo(): Promise<ResumoAdministrativo> {
   };
 }
 
+/**
+ * Decide a verificação de uma conta.
+ *
+ * CORREÇÃO DE SEGURANÇA (19/08/2026)
+ *
+ * A versão anterior actualizava os documentos com `.eq('tenant_id', ...)` — ou
+ * seja, aprovar um utilizador aprovava TODOS os documentos da empresa, mesmo os
+ * que o administrador nunca abriu e mesmo os que já tinham sido rejeitados.
+ *
+ * Agora:
+ *  - só são tocados os documentos cujo id é passado explicitamente em
+ *    `documentosIds`, isto é, os que o administrador tinha à frente ao decidir;
+ *  - a actualização é ainda restringida ao tenant do utilizador (defesa contra
+ *    ids de outra empresa) e ao estado `PENDING`, para que um documento já
+ *    rejeitado não seja aprovado por efeito colateral;
+ *  - sem `documentosIds`, nenhum documento é alterado — a decisão recai apenas
+ *    sobre a conta e a empresa.
+ *
+ * A decisão fica registada em `verification_audit_log`, e `verification_date` /
+ * `verified_by` passam a ser preenchidos.
+ */
 export async function decidirVerificacao(
   utilizadorId: string,
   aprovar: boolean,
   motivo?: string,
+  documentosIds?: string[],
 ) {
-  await exigirAdmin();
+  const admin = await exigirAdmin();
   const supabase = getAdminSupabase();
 
   const { data: utilizador, error: erroUser } = await supabase
@@ -296,12 +318,16 @@ export async function decidirVerificacao(
   }
 
   const status = aprovar ? 'APPROVED' : 'REJECTED';
+  const agora = new Date().toISOString();
+  const razao = motivo ?? 'Rejeitado pela equipa CargoFlow';
 
   const { error: erroUsers } = await supabase
     .from('users')
     .update({
       verification: status,
-      updated_at: new Date().toISOString(),
+      verification_date: agora,
+      verified_by: admin.user.id,
+      updated_at: agora,
     })
     .eq('id', utilizadorId);
 
@@ -309,27 +335,55 @@ export async function decidirVerificacao(
 
   const { error: erroTenant } = await supabase
     .from('tenants')
-    .update({
-      verification: status,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ verification: status, updated_at: agora })
     .eq('id', utilizador.tenant_id);
 
   if (erroTenant) throw new Error(erroTenant.message);
 
-  const { error: erroDocumentos } = await supabase
-    .from('documents')
-    .update({
-      verification: status,
-      rejection_reason: aprovar ? null : (motivo ?? 'Rejeitado pela equipa CargoFlow'),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('tenant_id', utilizador.tenant_id);
+  // Documentos: só os explicitamente incluídos na decisão, e só se ainda
+  // estiverem pendentes.
+  const ids = (documentosIds ?? []).filter(Boolean);
+  let documentosAfetados = 0;
 
-  if (erroDocumentos) throw new Error(erroDocumentos.message);
+  if (ids.length > 0) {
+    const { data: atualizados, error: erroDocumentos } = await supabase
+      .from('documents')
+      .update({
+        verification: status,
+        verified_by: admin.user.id,
+        verified_at: agora,
+        for_verification: true,
+        rejection_reason: aprovar ? null : razao,
+        updated_at: agora,
+      })
+      .in('id', ids)
+      .eq('tenant_id', utilizador.tenant_id)
+      .eq('verification', 'PENDING')
+      .select('id');
+
+    if (erroDocumentos) throw new Error(erroDocumentos.message);
+    documentosAfetados = atualizados?.length ?? 0;
+  }
+
+  // Rasto da decisão. Nunca faz falhar a operação que a originou.
+  const { error: erroAuditoria } = await supabase.from('verification_audit_log').insert({
+    user_id: utilizadorId,
+    tenant_id: utilizador.tenant_id,
+    admin_id: admin.user.id,
+    action: aprovar ? 'VERIFICATION_APPROVED' : 'VERIFICATION_REJECTED',
+    reason: aprovar ? null : razao,
+    comment: `${documentosAfetados} documento(s) abrangido(s) de ${ids.length} indicado(s).`,
+  });
+
+  if (erroAuditoria) {
+    console.error('Falha ao registar auditoria de verificação:', erroAuditoria.message);
+  }
 
   revalidatePath('/admin/verificacoes');
+  revalidatePath('/admin/trust');
   revalidatePath('/painel');
+
+  return { documentosAfetados, documentosIndicados: ids.length };
 }
 
 /** Documentos carregados por uma empresa, para o administrador rever */

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { atualizarPagamentoInterno } from '@/lib/pagamentos/actions';
+import { atualizarPagamentoInterno } from '@/lib/pagamentos/reconciliacao';
 
 type CallbackBody = {
   referencia?: string;

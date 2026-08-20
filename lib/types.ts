@@ -145,6 +145,15 @@ export interface AppUser {
   rating_count: number;
   completion_rate: number | null;
   is_active: boolean;
+  /**
+   * Estado de bloqueio refletido a partir de `user_blocklist`, que é a fonte de
+   * verdade. Vive aqui porque o utilizador consegue ler a sua própria linha em
+   * `users` mas não a entrada da blocklist — ver `lib/seguranca/conta.ts`.
+   */
+  is_blocked: boolean;
+  /** Mecanismo legado do painel `/admin/utilizadores`, mantido em sincronia. */
+  banned: boolean;
+  blocked_reason: string | null;
 }
 
 /** Sessão resolvida no servidor — utilizador + empresa */

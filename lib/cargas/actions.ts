@@ -4,8 +4,9 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
+import { garantirContaAtiva } from '@/lib/seguranca/conta';
 import { traduzirErro } from '@/lib/erros';
-import { notificarMatchesDeCarga } from '@/lib/matching/actions';
+import { notificarMatchesDeCarga } from '@/lib/matching/notificacoes';
 
 // =============================================================================
 // Validação
@@ -91,6 +92,7 @@ export async function criarCarga(
 ): Promise<EstadoCarga> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   if (!PERFIS_PODEM_PUBLICAR_CARGA.includes(perfil.user.role)) {
     return { erro: 'O seu perfil não permite publicar cargas.' };
@@ -170,6 +172,7 @@ export async function editarCarga(
 ): Promise<EstadoCarga> {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const cargaId = String(formData.get('cargaId') ?? '');
   if (!cargaId) return { erro: 'Carga não identificada.' };
@@ -257,6 +260,7 @@ export async function editarCarga(
 export async function publicarCarga(cargaId: string) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   if (perfil.user.verification !== 'APPROVED') {
     throw new Error('Conta ainda não verificada.');
@@ -289,6 +293,7 @@ export async function publicarCarga(cargaId: string) {
 export async function cancelarCarga(cargaId: string) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
+  garantirContaAtiva(perfil);
 
   const supabase = createClient();
   // Só se cancela antes de estar em trânsito — depois disso é uma disputa,
