@@ -5,6 +5,7 @@ import { obterViagem } from '@/lib/viagens/actions';
 import { listarLocalidades } from '@/lib/cargas/actions';
 import { listarVeiculosDisponiveis } from '@/lib/frota/actions';
 import { FormularioViagem, type ViagemEditavel } from '../../nova/formulario';
+import type { VeiculoElegivel } from '@/lib/frota/elegibilidade';
 import { ArrowLeft } from 'lucide-react';
 
 export const metadata = { title: 'Editar viagem' };
@@ -37,11 +38,29 @@ export default async function PaginaEditarViagem({
     listarVeiculosDisponiveis(),
   ]);
 
-  // O veículo desta viagem pode já não constar dos "disponíveis" — tem de
-  // continuar a aparecer na lista, senão o formulário perde-o ao gravar.
-  const listaVeiculos = (veiculos as any[]).some((v) => v.id === viagem.vehicle_id)
-    ? (veiculos as any[])
-    : [viagem.vehicle, ...(veiculos as any[])].filter(Boolean);
+  // O veículo desta viagem pode já não constar dos activos — foi desactivado,
+  // por exemplo. Tem de continuar a aparecer na lista, senão o formulário
+  // perde-o ao gravar.
+  //
+  // Fica seleccionável de propósito: `editarViagem` só reavalia a elegibilidade
+  // quando o veículo MUDA. Um camião que deixou de ser elegível depois da
+  // viagem estar publicada não deve impedir o camionista de corrigir o preço
+  // ou de cancelar.
+  const jaConsta = veiculos.some((v) => v.id === viagem.vehicle_id);
+  const listaVeiculos: VeiculoElegivel[] = jaConsta
+    ? veiculos
+    : [
+        {
+          ...(viagem.vehicle as object),
+          estado_compliance: 'pending',
+          tipos_em_falta: [],
+          valido_ate: null,
+          elegivel: true,
+          motivo: 'Veículo já associado a esta viagem',
+          gravidade: 'aviso',
+        } as unknown as VeiculoElegivel,
+        ...veiculos,
+      ].filter(Boolean);
 
   const editavel: ViagemEditavel = {
     id: viagem.id,
@@ -76,7 +95,7 @@ export default async function PaginaEditarViagem({
 
       <FormularioViagem
         localidades={localidades as any}
-        veiculos={listaVeiculos as any}
+        veiculos={listaVeiculos}
         viagem={editavel}
       />
     </div>

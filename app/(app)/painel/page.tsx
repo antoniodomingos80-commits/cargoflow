@@ -447,6 +447,53 @@ async function PainelAdministrador({ nome }: { nome: string }) {
 
           <section className="space-y-3">
             <h2 className="text-xs font-medium uppercase tracking-wider text-slate-400">
+              Confiança e conformidade
+            </h2>
+            <KpiRow colunas={4}>
+              <StatCard
+                rotulo="Em análise"
+                valor={resumo.documentos_em_analise}
+                icone={FileText}
+                tom={resumo.documentos_em_analise > 0 ? 'marca' : 'neutro'}
+                href="/admin/documentos"
+              />
+              <StatCard
+                rotulo="Documentos aprovados"
+                valor={resumo.documentos_aprovados}
+                icone={CheckCircle2}
+                tom="positivo"
+              />
+              <StatCard
+                rotulo="Rejeitados"
+                valor={resumo.documentos_rejeitados}
+                tom={resumo.documentos_rejeitados > 0 ? 'alerta' : 'neutro'}
+              />
+              <StatCard
+                rotulo="Expirados"
+                valor={resumo.documentos_expirados}
+                tom={resumo.documentos_expirados > 0 ? 'alerta' : 'neutro'}
+              />
+            </KpiRow>
+            <KpiRow colunas={2}>
+              <StatCard
+                rotulo="Veículos não conformes"
+                valor={resumo.veiculos_nao_conformes}
+                icone={Truck}
+                tom={resumo.veiculos_nao_conformes > 0 ? 'alerta' : 'positivo'}
+                contexto="sem livrete, seguro ou inspeção válidos"
+              />
+              <StatCard
+                rotulo="Empresas por verificar"
+                valor={resumo.empresas_por_verificar}
+                icone={ShieldAlert}
+                tom={resumo.empresas_por_verificar > 0 ? 'destaque' : 'positivo'}
+                href="/admin/verificacoes"
+              />
+            </KpiRow>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Atividade
             </h2>
             <KpiRow colunas={4}>

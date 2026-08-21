@@ -6,6 +6,11 @@ import { z } from 'zod';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
 import { garantirContaAtiva } from '@/lib/seguranca/conta';
 import { traduzirErro } from '@/lib/erros';
+import {
+  avaliarElegibilidade,
+  type VeiculoElegivel,
+} from '@/lib/frota/elegibilidade';
+import type { EstadoCompliance } from '@/lib/types';
 
 const veiculoSchema = z.object({
   plate: z
@@ -103,15 +108,64 @@ export async function listarVeiculos() {
   return data ?? [];
 }
 
-/** Só veículos aprovados podem ser usados em viagens publicadas */
-export async function listarVeiculosDisponiveis() {
+/**
+ * Veículos para escolher ao publicar ou editar uma viagem.
+ *
+ * Devolve TODOS os veículos activos da empresa, cada um com o seu estado de
+ * elegibilidade e, quando não pode ser usado, o motivo. Não filtra a lista.
+ *
+ * Porquê não filtrar: um veículo que desaparece sem explicação é pior do que
+ * um veículo que aparece bloqueado. A pessoa fica a olhar para um seletor onde
+ * falta o camião dela e não faz ideia do que correu mal. Assim vê o camião, vê
+ * que não o pode usar, e vê porquê.
+ *
+ * A regra vive em `lib/frota/elegibilidade.ts` e é espelhada por
+ * `cf_veiculo_elegivel()` na base de dados — esta lista é conveniência de
+ * interface, quem decide é o RLS.
+ */
+export async function listarVeiculosDisponiveis(): Promise<VeiculoElegivel[]> {
+  const perfil = await getSessionProfile();
+  if (!perfil) return [];
+
   const supabase = createClient();
-  const { data } = await supabase
-    .from('vehicles')
-    .select('*')
-    .eq('is_active', true)
-    .order('plate');
-  return data ?? [];
+
+  const [{ data: veiculos }, { data: compliance }] = await Promise.all([
+    supabase.from('vehicles').select('*').eq('is_active', true).order('plate'),
+    supabase
+      .from('vehicle_compliance')
+      .select('vehicle_id, estado_compliance, tipos_em_falta, valido_ate')
+      .eq('tenant_id', perfil.tenant.id),
+  ]);
+
+  const porId = new Map(
+    ((compliance ?? []) as Array<{
+      vehicle_id: string;
+      estado_compliance: EstadoCompliance;
+      tipos_em_falta: string[] | null;
+      valido_ate: string | null;
+    }>).map((c) => [c.vehicle_id, c]),
+  );
+
+  return ((veiculos ?? []) as Array<Record<string, unknown>>).map((v) => {
+    const c = porId.get(v.id as string);
+    const estado = c?.estado_compliance ?? 'pending';
+    const emFalta = c?.tipos_em_falta ?? [];
+    const { elegivel, motivo, gravidade } = avaliarElegibilidade(
+      String(v.verification),
+      estado,
+      emFalta,
+    );
+
+    return {
+      ...v,
+      estado_compliance: estado,
+      tipos_em_falta: emFalta,
+      valido_ate: c?.valido_ate ?? null,
+      elegivel,
+      motivo,
+      gravidade,
+    } as unknown as VeiculoElegivel;
+  });
 }
 
 export async function desativarVeiculo(veiculoId: string) {

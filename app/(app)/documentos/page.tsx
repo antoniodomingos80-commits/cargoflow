@@ -5,19 +5,17 @@ import { listarDocumentos, apagarDocumento, urlDocumento } from '@/lib/documento
 import { FormularioDocumento } from './formulario';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
-import { DOCUMENT_TYPE_LABELS, type DocumentType } from '@/lib/types';
+import { listarVeiculos } from '@/lib/frota/actions';
+import { EstadoVerificacao } from '@/components/trust/estado-verificacao';
+import { Badge } from '@/components/ui/badge';
 import {
-  FileText, CheckCircle2, Clock, XCircle, Trash2, ExternalLink, ShieldAlert,
-} from 'lucide-react';
+  DOCUMENT_TYPE_LABELS,
+  type DocumentType,
+  type VerificationStatus,
+} from '@/lib/types';
+import { FileText, Trash2, ExternalLink, ShieldAlert } from 'lucide-react';
 
 export const metadata = { title: 'Documentos' };
-
-const ESTADO = {
-  APPROVED: { rotulo: 'Verificado', classe: 'cf-badge-done', icone: CheckCircle2 },
-  PENDING: { rotulo: 'Em verificação', classe: 'cf-badge-delayed', icone: Clock },
-  REJECTED: { rotulo: 'Rejeitado', classe: 'cf-badge-idle', icone: XCircle },
-  EXPIRED: { rotulo: 'Expirado', classe: 'cf-badge-idle', icone: XCircle },
-} as const;
 
 function formatarData(iso: string | null) {
   if (!iso) return null;
@@ -30,13 +28,22 @@ export default async function PaginaDocumentos() {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
-  const documentos = await listarDocumentos();
   const ehTransportador = ['CARRIER', 'COMPANY_ADMIN', 'COMPANY_STAFF'].includes(
     perfil.user.role,
   );
+
+  const [documentos, frota] = await Promise.all([
+    listarDocumentos(),
+    ehTransportador
+      ? (listarVeiculos() as unknown as Promise<Array<{ id: string; plate: string }>>)
+      : Promise.resolve([]),
+  ]);
+
   const porVerificar = perfil.user.verification === 'PENDING';
   const aprovados = documentos.filter((d) => d.verification === 'APPROVED').length;
-  const pendentes = documentos.filter((d) => d.verification === 'PENDING').length;
+  const pendentes = documentos.filter((d) =>
+    ['PENDING', 'UNDER_REVIEW'].includes(d.verification),
+  ).length;
 
   // URLs assinados para pré-visualização (o bucket é privado)
   const urls = Object.fromEntries(
@@ -50,7 +57,7 @@ export default async function PaginaDocumentos() {
       <PageHeader
         titulo="Documentos"
         descricao="A verificação é o que dá confiança à outra parte do negócio."
-        accoes={<FormularioDocumento perfilCarrier={ehTransportador} />}
+        accoes={<FormularioDocumento perfilCarrier={ehTransportador} veiculos={frota} />}
       />
 
       {porVerificar && (
@@ -97,22 +104,20 @@ export default async function PaginaDocumentos() {
       ) : (
         <div className="space-y-3">
           {documentos.map((d) => {
-            const est = ESTADO[d.verification as keyof typeof ESTADO] ?? ESTADO.PENDING;
-            const Icone = est.icone;
             const expirado =
-              d.expires_at && new Date(d.expires_at) < new Date();
+              d.expires_at &&
+              d.verification !== 'EXPIRED' &&
+              new Date(d.expires_at) < new Date();
 
             return (
               <article key={d.id} className="cf-card p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={est.classe}>
-                        <Icone className="h-3 w-3" aria-hidden="true" />
-                        {est.rotulo}
-                      </span>
-                      {expirado && (
-                        <span className="cf-badge-delayed">Validade ultrapassada</span>
+                      <EstadoVerificacao estado={d.verification as VerificationStatus} />
+                      {expirado && <Badge tom="alerta">Validade ultrapassada</Badge>}
+                      {d.veiculo?.plate && (
+                        <Badge tom="neutro">Veículo {d.veiculo.plate}</Badge>
                       )}
                     </div>
 

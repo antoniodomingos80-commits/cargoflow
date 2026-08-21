@@ -5,15 +5,31 @@ import { carregarDocumento } from '@/lib/documentos/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { DOCUMENT_TYPE_LABELS } from '@/lib/types';
+import {
+  DOCUMENT_TYPE_LABELS,
+  TIPOS_DE_VEICULO,
+  type DocumentType,
+} from '@/lib/types';
 import { Upload, AlertCircle, CheckCircle2, X } from 'lucide-react';
 
-export function FormularioDocumento({ perfilCarrier }: { perfilCarrier: boolean }) {
+export function FormularioDocumento({
+  perfilCarrier,
+  veiculos = [],
+}: {
+  perfilCarrier: boolean;
+  /** Frota da empresa, para associar livrete, seguro e inspeção ao veículo. */
+  veiculos?: Array<{ id: string; plate: string }>;
+}) {
   const [aberto, setAberto] = useState(false);
   const [aEnviar, setAEnviar] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
+  const [tipo, setTipo] = useState<string>('');
   const formRef = useRef<HTMLFormElement>(null);
+
+  // O seletor de veículo só faz sentido para os documentos que são do veículo.
+  const pedeVeiculo =
+    veiculos.length > 0 && TIPOS_DE_VEICULO.includes(tipo as DocumentType);
 
   async function submeter(formData: FormData) {
     setAEnviar(true);
@@ -27,6 +43,7 @@ export function FormularioDocumento({ perfilCarrier }: { perfilCarrier: boolean 
     }
     setSucesso(true);
     formRef.current?.reset();
+    setTipo('');
     setTimeout(() => {
       setSucesso(false);
       setAberto(false);
@@ -74,7 +91,14 @@ export function FormularioDocumento({ perfilCarrier }: { perfilCarrier: boolean 
       )}
 
       <form ref={formRef} action={submeter} className="mt-5 space-y-4">
-        <Select label="Tipo de documento" name="tipo" required placeholder="Selecionar…">
+        <Select
+          label="Tipo de documento"
+          name="tipo"
+          required
+          placeholder="Selecionar…"
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+        >
           {Object.entries(DOCUMENT_TYPE_LABELS)
             .filter(([v]) =>
               perfilCarrier
@@ -85,6 +109,20 @@ export function FormularioDocumento({ perfilCarrier }: { perfilCarrier: boolean 
               <option key={v} value={v}>{rotulo}</option>
             ))}
         </Select>
+
+        {pedeVeiculo && (
+          <Select
+            label="Veículo"
+            name="veiculo"
+            required
+            placeholder="Selecionar…"
+            hint="Este documento conta para a conformidade do veículo escolhido."
+          >
+            {veiculos.map((v) => (
+              <option key={v.id} value={v.id}>{v.plate}</option>
+            ))}
+          </Select>
+        )}
 
         <div className="space-y-1.5">
           <label htmlFor="ficheiro" className="block text-sm font-medium text-navy-600">
@@ -103,7 +141,7 @@ export function FormularioDocumento({ perfilCarrier }: { perfilCarrier: boolean 
           </p>
         </div>
 
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+        <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-700">
           Para documentos de veículo ou inspeção, prefira fotos com matrícula, estado do veículo e qualquer evidência que ajude a validação.
         </div>
 

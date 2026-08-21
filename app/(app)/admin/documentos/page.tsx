@@ -1,13 +1,48 @@
-import { decidirDocumentoAvulso, documentosPendentesAvulsos } from '@/lib/admin/actions';
+import Link from 'next/link';
+import { documentosPendentesAvulsos } from '@/lib/admin/actions';
+import { cn } from '@/lib/utils';
 import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { EstadoVerificacao } from '@/components/trust/estado-verificacao';
 import { urlDocumento } from '@/lib/documentos/actions';
-import { DOCUMENT_TYPE_LABELS, type DocumentType } from '@/lib/types';
+import {
+  DOCUMENT_TYPE_LABELS,
+  type DocumentType,
+  type VerificationStatus,
+} from '@/lib/types';
+import { FileCheck2, ExternalLink } from 'lucide-react';
+import { DecisoesDocumento } from './decisoes';
 
 export const metadata = { title: 'Documentos' };
 
-export default async function AdminDocumentosPage() {
-  const documentos = await documentosPendentesAvulsos();
+function data(iso: string) {
+  return new Date(iso).toLocaleDateString('pt-AO', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+type Estado = 'todos' | 'PENDING' | 'UNDER_REVIEW';
+
+const FILTROS: Array<{ chave: Estado; rotulo: string }> = [
+  { chave: 'todos', rotulo: 'Todos' },
+  { chave: 'PENDING', rotulo: 'Por abrir' },
+  { chave: 'UNDER_REVIEW', rotulo: 'Em análise' },
+];
+
+export default async function AdminDocumentosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ estado?: string }>;
+}) {
+  const { estado } = await searchParams;
+  const filtro: Estado =
+    estado === 'PENDING' || estado === 'UNDER_REVIEW' ? estado : 'todos';
+
+  const todos = await documentosPendentesAvulsos();
+  const documentos = filtro === 'todos' ? todos : todos.filter((d) => d.verification === filtro);
 
   const documentosComUrl = await Promise.all(
     documentos.map(async (d) => ({
@@ -16,46 +51,106 @@ export default async function AdminDocumentosPage() {
     })),
   );
 
+  const porDecidir = todos.filter((d) => d.verification === 'PENDING').length;
+  const emAnalise = todos.filter((d) => d.verification === 'UNDER_REVIEW').length;
+  const contagem: Record<Estado, number> = {
+    todos: todos.length,
+    PENDING: porDecidir,
+    UNDER_REVIEW: emAnalise,
+  };
+
   return (
-    <PageContainer>
+    <PageContainer largura="larga">
       <PageHeader
         titulo="Documentos"
         descricao="Documentos carregados por contas já aprovadas — não estão ligados a uma verificação inicial de utilizador, por isso precisam de ser revistos aqui."
         accoes={
-          <Badge tom={documentos.length > 0 ? 'destaque' : 'neutro'}>
-            {documentos.length} {documentos.length === 1 ? 'pendente' : 'pendentes'}
-          </Badge>
+          <>
+            <Badge tom={porDecidir > 0 ? 'destaque' : 'neutro'}>
+              {porDecidir} por abrir
+            </Badge>
+            {emAnalise > 0 ? <Badge tom="marca">{emAnalise} em análise</Badge> : null}
+          </>
         }
       />
 
+      <nav aria-label="Filtrar por estado" className="flex flex-wrap gap-2">
+        {FILTROS.map((f) => {
+          const activo = f.chave === filtro;
+          return (
+            <Link
+              key={f.chave}
+              href={f.chave === 'todos' ? '/admin/documentos' : `/admin/documentos?estado=${f.chave}`}
+              aria-current={activo ? 'page' : undefined}
+              className={cn(
+                'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
+                activo
+                  ? 'border-brand-500 bg-brand-50 text-brand-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+              )}
+            >
+              {f.rotulo}
+              <span className="ml-1.5 text-xs tabular-nums text-slate-400">
+                {contagem[f.chave]}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+
       {documentosComUrl.length === 0 ? (
-        <div className="rounded bg-gray-50 py-12 text-center">
-          <p className="font-semibold text-gray-600">Nenhum documento pendente.</p>
-        </div>
+        <EmptyState
+          icone={FileCheck2}
+          titulo={filtro === 'todos' ? 'Nada por rever' : 'Nada neste estado'}
+          texto={
+            filtro === 'todos'
+              ? 'Não há documentos à espera de decisão. Quando alguém carregar um documento novo, aparece aqui.'
+              : 'Nenhum documento está neste estado neste momento. Experimente outro filtro.'
+          }
+        />
       ) : (
         <div className="space-y-4">
           {documentosComUrl.map((doc) => (
-            <article key={doc.id} className="rounded-lg border bg-white p-4 shadow-sm">
+            <article key={doc.id} className="cf-card p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="font-semibold text-navy-600">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <EstadoVerificacao estado={doc.verification as VerificationStatus} />
+                    {doc.veiculo ? <Badge tom="neutro">Veículo {doc.veiculo}</Badge> : null}
+                  </div>
+
+                  <h2 className="mt-2.5 font-semibold text-navy-600">
                     {DOCUMENT_TYPE_LABELS[doc.type as DocumentType] ?? doc.type}
-                  </p>
-                  <p className="text-sm text-slate-600">
+                  </h2>
+
+                  <p className="mt-0.5 text-sm text-slate-600">
                     {doc.utilizador_nome ?? 'Sem nome'} · {doc.tenant_nome}
                   </p>
-                  {doc.document_number && (
-                    <p className="mt-0.5 text-xs text-slate-500">Nº {doc.document_number}</p>
-                  )}
-                  {doc.expires_at && (
-                    <p className="text-xs text-slate-500">
-                      Válido até {new Date(doc.expires_at).toLocaleDateString('pt-AO')}
-                    </p>
-                  )}
-                  <p className="mt-1 text-xs text-slate-400">
-                    Carregado em{' '}
-                    {new Date(doc.created_at).toLocaleDateString('pt-AO')}
-                  </p>
+
+                  <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+                    {doc.document_number && (
+                      <div>
+                        <dt className="inline">Nº </dt>
+                        <dd className="inline font-medium text-navy-600">
+                          {doc.document_number}
+                        </dd>
+                      </div>
+                    )}
+                    {doc.expires_at && (
+                      <div>
+                        <dt className="inline">Válido até </dt>
+                        <dd className="inline font-medium text-navy-600">
+                          {data(doc.expires_at)}
+                        </dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt className="inline">Carregado </dt>
+                      <dd className="inline font-medium text-navy-600">
+                        {data(doc.created_at)}
+                      </dd>
+                    </div>
+                  </dl>
                 </div>
 
                 {doc.url && (
@@ -63,48 +158,18 @@ export default async function AdminDocumentosPage() {
                     href={doc.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-sm font-medium text-blue-600 hover:underline"
+                    className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-brand-500 hover:underline"
                   >
                     Ver documento
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                   </a>
                 )}
               </div>
 
-              <div className="mt-4 flex gap-2">
-                <form
-                  action={async () => {
-                    'use server';
-                    await decidirDocumentoAvulso(doc.id, true);
-                  }}
-                  className="flex-1"
-                >
-                  <button
-                    type="submit"
-                    className="w-full rounded bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"
-                  >
-                    Aprovar
-                  </button>
-                </form>
-
-                <form
-                  action={async () => {
-                    'use server';
-                    await decidirDocumentoAvulso(
-                      doc.id,
-                      false,
-                      'Documentação incompleta ou não legível',
-                    );
-                  }}
-                  className="flex-1"
-                >
-                  <button
-                    type="submit"
-                    className="w-full rounded bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
-                  >
-                    Rejeitar
-                  </button>
-                </form>
-              </div>
+              <DecisoesDocumento
+                documentoId={doc.id}
+                emAnalise={doc.verification === 'UNDER_REVIEW'}
+              />
             </article>
           ))}
         </div>

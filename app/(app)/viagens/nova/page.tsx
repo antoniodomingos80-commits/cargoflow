@@ -46,7 +46,7 @@ export default async function PaginaNovaViagem() {
       ) : (
         <FormularioViagem
           localidades={localidades as any}
-          veiculos={veiculos as any}
+          veiculos={veiculos}
         />
       )}
     </div>

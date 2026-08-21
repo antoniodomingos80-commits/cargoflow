@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "types:supabase": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > lib/database.types.ts",
-    "test:seguranca": "node tests/seguranca-bloqueio.mjs"
+    "test:seguranca": "node tests/seguranca-bloqueio.mjs",
+    "test:trust": "node --experimental-strip-types tests/trust-score.mjs",
+    "test:elegibilidade": "node --experimental-strip-types --import ./tests/alias-register.mjs tests/elegibilidade-veiculo.mjs",
+    "test": "npm run test:seguranca && npm run test:trust && npm run test:elegibilidade"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

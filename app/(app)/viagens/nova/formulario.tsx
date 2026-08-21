@@ -8,8 +8,9 @@ import { criarViagem, editarViagem, type EstadoViagem } from '@/lib/viagens/acti
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { VEHICLE_TYPE_LABELS, type CFLocation, type Vehicle } from '@/lib/types';
-import { AlertCircle, RotateCcw, Lock } from 'lucide-react';
+import { VEHICLE_TYPE_LABELS, type CFLocation, type VehicleType } from '@/lib/types';
+import type { VeiculoElegivel } from '@/lib/frota/elegibilidade';
+import { AlertCircle, RotateCcw, Lock, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { SugestaoPreco } from '@/components/pricing/sugestao-preco';
 
 const estadoInicial: EstadoViagem = {};
@@ -52,7 +53,7 @@ export function FormularioViagem({
   viagem,
 }: {
   localidades: CFLocation[];
-  veiculos: Vehicle[];
+  veiculos: VeiculoElegivel[];
   /** Presente apenas em modo de edição */
   viagem?: ViagemEditavel;
 }) {
@@ -61,11 +62,16 @@ export function FormularioViagem({
     edicao ? editarViagem : criarViagem,
     estadoInicial,
   );
+  // Ao criar, a pré-seleção recai no primeiro veículo ELEGÍVEL — não faz
+  // sentido abrir o formulário já num camião que não pode ser usado. Ao
+  // editar, mantém-se o veículo actual, mesmo que entretanto tenha deixado
+  // de ser elegível: é isso que está lá.
   const [veiculoId, setVeiculoId] = useState(
-    viagem?.vehicle_id ?? veiculos[0]?.id ?? '',
+    viagem?.vehicle_id ?? veiculos.find((v) => v.elegivel)?.id ?? veiculos[0]?.id ?? '',
   );
 
   const veiculo = veiculos.find((v) => v.id === veiculoId);
+  const semElegiveis = veiculos.length > 0 && veiculos.every((v) => !v.elegivel);
   const hoje = new Date().toISOString().slice(0, 16);
 
   // Com carga já adjudicada, o que foi acordado com o comerciante fica fixo
@@ -117,11 +123,56 @@ export function FormularioViagem({
             error={estado.erros?.vehicleId?.[0]}
           >
             {veiculos.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.plate} · {VEHICLE_TYPE_LABELS[v.type]} · até {v.max_weight_kg} kg
+              // O veículo não elegível aparece na lista, desactivado. Desaparecer
+              // sem explicação deixaria a pessoa à procura do camião dela.
+              <option key={v.id} value={v.id} disabled={!v.elegivel}>
+                {v.plate} · {VEHICLE_TYPE_LABELS[v.type as VehicleType]} · até{' '}
+                {v.max_weight_kg} kg
+                {v.elegivel ? '' : ` — não elegível (${v.motivo})`}
               </option>
             ))}
           </Select>
+
+          {veiculo && !veiculo.elegivel && (
+            <p
+              role="alert"
+              className="mt-2 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs leading-relaxed text-red-700"
+            >
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                <strong className="font-semibold">Veículo não elegível</strong> — {veiculo.motivo}.
+                Regularize a documentação em{' '}
+                <Link href="/frota" className="underline">
+                  Frota
+                </Link>{' '}
+                antes de o usar numa viagem.
+              </span>
+            </p>
+          )}
+
+          {veiculo && veiculo.elegivel && veiculo.gravidade === 'aviso' && (
+            <p className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-700">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                {veiculo.motivo}. Pode publicar a viagem, mas a documentação
+                completa dá mais confiança a quem procura transporte.
+              </span>
+            </p>
+          )}
+
+          {semElegiveis && (
+            <p
+              role="alert"
+              className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs leading-relaxed text-red-700"
+            >
+              Nenhum dos seus veículos está elegível para operar. Resolva o que
+              está assinalado em{' '}
+              <Link href="/frota" className="underline">
+                Frota
+              </Link>
+              .
+            </p>
+          )}
           {/* Campos desativados não são enviados — o valor tem de seguir à mesma */}
           {estruturaBloqueada && (
             <input type="hidden" name="vehicleId" value={veiculoId} />

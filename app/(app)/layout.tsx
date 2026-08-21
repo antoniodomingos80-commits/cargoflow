@@ -10,7 +10,7 @@ import { ROLE_LABELS, type UserRole } from '@/lib/types';
 import {
   LayoutDashboard, Package, Truck, MapPin, Users, FileText,
   BarChart3, Settings, LogOut, ShieldAlert, MessageSquare, Wallet, PiggyBank,
-  Shield,
+  Shield, ShieldCheck,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +32,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/pagamentos', rotulo: 'Pagamentos', icone: Wallet },
     { href: '/carteira', rotulo: 'Carteira', icone: PiggyBank },
     { href: '/documentos', rotulo: 'Documentos', icone: FileText },
+    { href: '/confianca', rotulo: 'Confiança', icone: ShieldCheck },
     { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
   CARRIER: [
@@ -43,6 +44,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/pagamentos', rotulo: 'Pagamentos', icone: Wallet },
     { href: '/carteira', rotulo: 'Carteira', icone: PiggyBank },
     { href: '/documentos', rotulo: 'Documentos', icone: FileText },
+    { href: '/confianca', rotulo: 'Confiança', icone: ShieldCheck },
     { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
   COMPANY_ADMIN: [
@@ -56,6 +58,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/carteira', rotulo: 'Carteira', icone: PiggyBank },
     { href: '/relatorios', rotulo: 'Relatórios', icone: BarChart3 },
     { href: '/documentos', rotulo: 'Documentos', icone: FileText },
+    { href: '/confianca', rotulo: 'Confiança', icone: ShieldCheck },
     { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
   COMPANY_STAFF: [
@@ -66,6 +69,7 @@ const NAVEGACAO: Record<UserRole, { href: string; rotulo: string; icone: any }[]
     { href: '/pagamentos', rotulo: 'Pagamentos', icone: Wallet },
     { href: '/carteira', rotulo: 'Carteira', icone: PiggyBank },
     { href: '/rastreio', rotulo: 'Entregas', icone: MapPin },
+    { href: '/confianca', rotulo: 'Confiança', icone: ShieldCheck },
     { href: '/configuracoes', rotulo: 'Configurações', icone: Settings },
   ],
   PLATFORM_ADMIN: [

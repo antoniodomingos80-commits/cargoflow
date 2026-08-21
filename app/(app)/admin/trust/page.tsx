@@ -10,6 +10,9 @@ import {
 import { VerificationRequirementsCard } from '@/components/trust/VerificationRequirements';
 import { AuditLogCard } from '@/components/trust/AuditLog';
 import { BlocklistManager } from '@/components/trust/BlocklistManager';
+import { resumoAdministrativo } from '@/lib/admin/actions';
+import { StatCard, KpiRow } from '@/components/ui/stat-card';
+import { FileText, ShieldAlert, Truck, CalendarX } from 'lucide-react';
 
 export const metadata = { title: 'Trust Layer' };
 
@@ -26,11 +29,12 @@ export default async function TrustPage() {
   if (!perfil) redirect('/entrar');
   if (perfil.user.role !== 'PLATFORM_ADMIN') redirect('/painel');
 
-  const [requisitos, bloqueios, auditoria, utilizadores] = await Promise.all([
+  const [requisitos, bloqueios, auditoria, utilizadores, resumo] = await Promise.all([
     getVerificationRequirements(),
     listarBloqueiosAtivos(),
     listarAuditoria(50),
     listarUtilizadores(),
+    resumoAdministrativo(),
   ]);
 
   const bloqueaveis = utilizadores
@@ -48,6 +52,36 @@ export default async function TrustPage() {
         titulo="Trust Layer"
         descricao="Requisitos de documentação, contas bloqueadas e histórico das decisões de verificação."
       />
+
+      <KpiRow colunas={4}>
+        <StatCard
+          rotulo="Por rever"
+          valor={resumo.documentos_pendentes + resumo.documentos_em_analise}
+          contexto={`${resumo.documentos_em_analise} já em análise`}
+          icone={FileText}
+          tom={resumo.documentos_pendentes > 0 ? 'destaque' : 'neutro'}
+          href="/admin/documentos"
+        />
+        <StatCard
+          rotulo="Documentos expirados"
+          valor={resumo.documentos_expirados}
+          icone={CalendarX}
+          tom={resumo.documentos_expirados > 0 ? 'alerta' : 'positivo'}
+        />
+        <StatCard
+          rotulo="Veículos não conformes"
+          valor={resumo.veiculos_nao_conformes}
+          icone={Truck}
+          tom={resumo.veiculos_nao_conformes > 0 ? 'alerta' : 'positivo'}
+        />
+        <StatCard
+          rotulo="Empresas por verificar"
+          valor={resumo.empresas_por_verificar}
+          icone={ShieldAlert}
+          tom={resumo.empresas_por_verificar > 0 ? 'destaque' : 'positivo'}
+          href="/admin/verificacoes"
+        />
+      </KpiRow>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">

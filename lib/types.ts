@@ -13,7 +13,30 @@ export type UserRole =
   | 'COMPANY_STAFF'   // operacional de empresa
   | 'PLATFORM_ADMIN'; // administrador CargoFlow
 
-export type VerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+export type VerificationStatus =
+  | 'PENDING'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'EXPIRED';
+
+export const VERIFICATION_STATUS_LABELS: Record<VerificationStatus, string> = {
+  PENDING: 'Por verificar',
+  UNDER_REVIEW: 'Em análise',
+  APPROVED: 'Verificado',
+  REJECTED: 'Recusado',
+  EXPIRED: 'Expirado',
+};
+
+/** Estado de conformidade de um veículo — vem da vista `vehicle_compliance`. */
+export type EstadoCompliance = 'compliant' | 'pending' | 'non_compliant' | 'expired';
+
+export const COMPLIANCE_LABELS: Record<EstadoCompliance, string> = {
+  compliant: 'Conforme',
+  pending: 'Documentação incompleta',
+  non_compliant: 'Não conforme',
+  expired: 'Documentação expirada',
+};
 
 export type LoadStatus =
   | 'DRAFT' | 'PUBLISHED' | 'NEGOTIATING' | 'ASSIGNED' | 'PICKED_UP'
@@ -36,6 +59,22 @@ export type OfferStatus =
 export type DocumentType =
   | 'NATIONAL_ID' | 'DRIVING_LICENSE' | 'VEHICLE_REGISTRATION' | 'INSURANCE'
   | 'INSPECTION' | 'COMPANY_REGISTRATION' | 'TAX_ID' | 'OTHER';
+
+/**
+ * Documentos que pertencem a um veículo, e não à pessoa ou à empresa.
+ *
+ * Vive aqui, e não em `lib/documentos/actions.ts`, porque esse ficheiro é
+ * `'use server'` — nesses ficheiros só é permitido exportar funções assíncronas,
+ * e uma constante rebenta a compilação.
+ *
+ * A mesma lista está na vista `vehicle_compliance` na base de dados; são os
+ * três documentos que tornam um veículo conforme.
+ */
+export const TIPOS_DE_VEICULO: DocumentType[] = [
+  'VEHICLE_REGISTRATION',
+  'INSURANCE',
+  'INSPECTION',
+];
 
 // --- Rótulos em português (interface) ---------------------------------------
 
@@ -154,6 +193,11 @@ export interface AppUser {
   /** Mecanismo legado do painel `/admin/utilizadores`, mantido em sincronia. */
   banned: boolean;
   blocked_reason: string | null;
+  /**
+   * Pontuação de confiança persistida. Só o servidor a escreve — a coluna está
+   * protegida pelo gatilho `zz_proteger_campos_admin`.
+   */
+  trust_score: number | null;
 }
 
 /** Sessão resolvida no servidor — utilizador + empresa */

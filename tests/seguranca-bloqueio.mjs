@@ -225,5 +225,198 @@ const corresp = readFileSync(join(RAIZ, 'lib/correspondencias/actions.ts'), 'utf
 verificar('convidarTransportador chama a barreira', corresp.includes('garantirContaAtiva(perfil)'));
 
 // ---------------------------------------------------------------------------
+// 8. P1 — Trust & Compliance
+//
+// O que se verifica aqui é o CONTRATO: que a fórmula de pontuação vive num só
+// sítio, que a aplicação não escreve estados administrativos, e que ninguém
+// decide sobre si próprio. Os cenários que exigem sessão real (escalada de
+// papel, auto-aprovação, isolamento entre empresas) foram provados por SQL
+// transaccional contra a base de dados de produção — ver o relatório do P1.
+// ---------------------------------------------------------------------------
+console.log('\n[8] Trust & Compliance');
+
+const blindagem = readFileSync(
+  join(RAIZ, 'supabase/migrations/20260821_p1_blindagem_campos_administrativos.sql'),
+  'utf8',
+);
+
+for (const tabela of ['users', 'documents', 'vehicles', 'tenants', 'drivers']) {
+  verificar(
+    `${tabela} tem o gatilho de blindagem`,
+    new RegExp(
+      `CREATE TRIGGER zz_proteger_campos_admin\\s+BEFORE INSERT OR UPDATE ON public\\.${tabela}\\b`,
+    ).test(blindagem),
+  );
+}
+for (const coluna of ['role', 'tenant_id', 'trust_score', 'is_blocked', 'verification']) {
+  verificar(`a blindagem protege ${coluna}`, new RegExp(`'${coluna}'`).test(blindagem));
+}
+verificar(
+  'a escrita privilegiada não confia em `authenticated`',
+  /current_user NOT IN \('authenticated', 'anon'\)/.test(blindagem),
+);
+verificar(
+  'a função de autorização é SECURITY INVOKER',
+  !/escrita_administrativa_permitida[\s\S]{0,300}SECURITY DEFINER/.test(blindagem),
+);
+verificar(
+  'ninguém verifica a própria empresa',
+  /própria empresa/.test(blindagem) && /current_tenant_id\(\)/.test(blindagem),
+);
+verificar(
+  'a leitura do balde `cargas` passou a filtrar por empresa',
+  /CREATE POLICY cargas_ler[\s\S]*?current_tenant_id/.test(blindagem),
+);
+
+const trustSql = readFileSync(
+  join(RAIZ, 'supabase/migrations/20260821_p1_trust_compliance.sql'),
+  'utf8',
+);
+
+verificar('existe uma função de pontuação', /FUNCTION public\.cf_trust_score\(/.test(trustSql));
+verificar(
+  'a pontuação devolve a decomposição, não só o número',
+  /'fatores',\s+v_fatores/.test(trustSql),
+);
+verificar(
+  'o cálculo é renormalizado pelos fatores com dados',
+  /ROUND\(100 \* v_pontos \/ v_peso_total\)/.test(trustSql),
+);
+verificar(
+  'sem dados nenhuns a pontuação é nula, não zero',
+  /IF v_peso_total = 0 THEN\s+v_score := NULL;/.test(trustSql),
+);
+verificar(
+  'o recálculo é a única via que escreve users.trust_score',
+  /UPDATE users SET trust_score = v_novo/.test(trustSql),
+);
+verificar(
+  'o browser não pode chamar o recálculo',
+  /REVOKE ALL ON FUNCTION public\.cf_recalcular_trust_score\(UUID\)[^\n]*authenticated/.test(trustSql),
+);
+verificar(
+  'o browser não pode chamar a pontuação directamente',
+  /REVOKE ALL ON FUNCTION public\.cf_trust_score\(UUID\)[^\n]*authenticated/.test(trustSql),
+);
+verificar(
+  'a porta de leitura autoriza antes de calcular',
+  /cf_trust_score_visivel[\s\S]*?cf_trust_score_autorizado/.test(trustSql),
+);
+verificar(
+  'a expiração de documentos existe',
+  /FUNCTION public\.cf_expirar_documentos\(\)/.test(trustSql),
+);
+verificar('a expiração regista auditoria', /'DOCUMENT_EXPIRED', 'document'/.test(trustSql));
+verificar('a expiração está agendada', /cron\.schedule\(\s*'cf_expirar_documentos'/.test(trustSql));
+verificar(
+  'a vista de conformidade respeita o RLS de quem consulta',
+  /CREATE VIEW public\.vehicle_compliance\s+WITH \(security_invoker = true\)/.test(trustSql),
+);
+for (const estado of ['compliant', 'pending', 'non_compliant', 'expired']) {
+  verificar(`a conformidade prevê o estado ${estado}`, new RegExp(`'${estado}'`).test(trustSql));
+}
+
+// --- A aplicação não escreve estados administrativos -------------------------
+const perfilTrust = readFileSync(join(RAIZ, 'lib/trust/perfil.ts'), 'utf8');
+verificar(
+  'o perfil de confiança usa o motor puro, não uma cópia da fórmula',
+  /calcularTrustScore\(entrada\)/.test(perfilTrust),
+);
+verificar(
+  'o perfil de confiança só lê a base de dados',
+  !/\.(insert|update|upsert|delete)\(/.test(perfilTrust),
+);
+verificar(
+  'o perfil de confiança é filtrado pela empresa da sessão',
+  /\.eq\('tenant_id', perfil\.tenant\.id\)/.test(perfilTrust),
+);
+
+const motor = readFileSync(join(RAIZ, 'lib/trust/score.ts'), 'utf8');
+// Sem comentários: a documentação do ficheiro cita caminhos e nomes de funções
+// SQL, e procurá-los no texto inteiro daria um falso positivo.
+const motorCodigo = motor.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+verificar(
+  'o motor de pontuação não importa nada',
+  !/^\s*import\s/m.test(motorCodigo),
+);
+verificar(
+  'o motor de pontuação não toca na base de dados',
+  !/supabase|createClient|rpc\(/.test(motorCodigo),
+);
+verificar('o motor de pontuação é determinístico', !/Math\.random|Date\.now|new Date\(/.test(motor));
+verificar('os pesos do motor somam 100', (() => {
+  const bloco = motor.slice(motor.indexOf('export const PESOS'), motor.indexOf('export const ROTULOS'));
+  const soma = [...bloco.matchAll(/:\s*(\d+),/g)].reduce((s, m) => s + Number(m[1]), 0);
+  return soma === 100;
+})());
+verificar(
+  'cada fator devolve a sua evidência',
+  /evidencia:/.test(motor) && /indisponiveis/.test(motor),
+);
+
+const docsActions = readFileSync(join(RAIZ, 'lib/documentos/actions.ts'), 'utf8');
+verificar(
+  'um documento novo nasce sempre PENDING',
+  /verification: 'PENDING'/.test(docsActions) && !/verification: 'APPROVED'/.test(docsActions),
+);
+verificar(
+  'a associação a um veículo é validada no servidor',
+  /\.from\('vehicles'\)[\s\S]{0,300}\.eq\('tenant_id', perfil\.tenant\.id\)/.test(docsActions),
+);
+
+const compliance = readFileSync(join(RAIZ, 'lib/frota/compliance.ts'), 'utf8');
+verificar(
+  'a conformidade é filtrada pela empresa da sessão',
+  /\.eq\('tenant_id', perfil\.tenant\.id\)/.test(compliance),
+);
+
+// --- Ninguém decide sobre si próprio ----------------------------------------
+const blocoDecidirV2 = admin.slice(
+  admin.indexOf('export async function decidirVerificacao'),
+  admin.indexOf('async function recalcularPontuacao'),
+);
+verificar(
+  'decidirVerificacao recusa decidir sobre a própria conta',
+  /utilizadorId === admin\.user\.id/.test(blocoDecidirV2),
+);
+verificar(
+  'decidirVerificacao recusa decidir sobre a própria empresa',
+  /utilizador\.tenant_id === admin\.tenant\.id/.test(blocoDecidirV2),
+);
+verificar(
+  'decidirVerificacao regista o antes e o depois',
+  /estado_anterior:/.test(blocoDecidirV2) && /estado_novo:/.test(blocoDecidirV2),
+);
+
+const blocoDocumento = admin.slice(
+  admin.indexOf('export async function decidirDocumentoAvulso'),
+  admin.indexOf('export interface DecisaoRegistada'),
+);
+verificar(
+  'decidirDocumentoAvulso recusa documentos da própria empresa',
+  /documento\.tenant_id === admin\.tenant\.id/.test(blocoDocumento),
+);
+verificar('rejeitar exige motivo', /decisao === 'REJEITAR' && !razao/.test(blocoDocumento));
+verificar('existe o estado em análise', /UNDER_REVIEW/.test(admin));
+verificar('existe o pedido de nova submissão', /REENVIAR/.test(admin));
+verificar(
+  'decidirDocumentoAvulso regista o antes e o depois',
+  /estado_anterior: documento\.verification/.test(blocoDocumento),
+);
+
+// --- O gate de administrador e os perfis não foram tocados ------------------
+verificar(
+  'a barreira de administrador continua a redirecionar quem não é admin',
+  /perfil\.user\.role !== 'PLATFORM_ADMIN'\) redirect\('\/painel'\)/.test(admin),
+);
+const layout = readFileSync(join(RAIZ, 'app/(app)/layout.tsx'), 'utf8');
+verificar(
+  'a navegação continua a ter os cinco perfis',
+  ['MERCHANT:', 'CARRIER:', 'COMPANY_ADMIN:', 'COMPANY_STAFF:', 'PLATFORM_ADMIN:'].every((p) =>
+    layout.includes(p),
+  ),
+);
+
+// ---------------------------------------------------------------------------
 console.log(`\n${passes} passaram, ${falhas} falharam\n`);
 process.exit(falhas === 0 ? 0 : 1);

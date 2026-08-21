@@ -39,6 +39,12 @@ export interface ResumoAdministrativo {
   verificacoes_pendentes: number;
   pagamentos_pendentes: number;
   documentos_pendentes: number;
+  documentos_em_analise: number;
+  documentos_aprovados: number;
+  documentos_rejeitados: number;
+  documentos_expirados: number;
+  veiculos_nao_conformes: number;
+  empresas_por_verificar: number;
 }
 
 /** Barreira aplicada em todas as páginas de administração */
@@ -255,7 +261,25 @@ export async function resumoAdministrativo(): Promise<ResumoAdministrativo> {
   await exigirAdmin();
   const supabase = getAdminSupabase();
 
-  const [verificacoes, pagamentos, documentos] = await Promise.all([
+  // Uma contagem por estado. São contagens `head` — não trazem linhas, só o
+  // número — por isso sai barato mesmo quando a tabela crescer.
+  const contarDocumentos = (estado: string) =>
+    supabase
+      .from('documents')
+      .select('*', { count: 'exact', head: true })
+      .eq('verification', estado);
+
+  const [
+    verificacoes,
+    pagamentos,
+    pendentes,
+    emAnalise,
+    aprovados,
+    rejeitados,
+    expirados,
+    empresas,
+    frota,
+  ] = await Promise.all([
     supabase
       .from('users')
       .select('*', { count: 'exact', head: true })
@@ -264,16 +288,31 @@ export async function resumoAdministrativo(): Promise<ResumoAdministrativo> {
       .from('payments')
       .select('*', { count: 'exact', head: true })
       .in('status', ['PENDING', 'EXPIRED']),
+    contarDocumentos('PENDING'),
+    contarDocumentos('UNDER_REVIEW'),
+    contarDocumentos('APPROVED'),
+    contarDocumentos('REJECTED'),
+    contarDocumentos('EXPIRED'),
     supabase
-      .from('documents')
+      .from('tenants')
       .select('*', { count: 'exact', head: true })
-      .eq('verification', 'PENDING'),
+      .in('verification', ['PENDING', 'UNDER_REVIEW']),
+    supabase
+      .from('vehicle_compliance')
+      .select('*', { count: 'exact', head: true })
+      .neq('estado_compliance', 'compliant'),
   ]);
 
   return {
     verificacoes_pendentes: verificacoes.count ?? 0,
     pagamentos_pendentes: pagamentos.count ?? 0,
-    documentos_pendentes: documentos.count ?? 0,
+    documentos_pendentes: pendentes.count ?? 0,
+    documentos_em_analise: emAnalise.count ?? 0,
+    documentos_aprovados: aprovados.count ?? 0,
+    documentos_rejeitados: rejeitados.count ?? 0,
+    documentos_expirados: expirados.count ?? 0,
+    veiculos_nao_conformes: frota.count ?? 0,
+    empresas_por_verificar: empresas.count ?? 0,
   };
 }
 
@@ -309,12 +348,24 @@ export async function decidirVerificacao(
 
   const { data: utilizador, error: erroUser } = await supabase
     .from('users')
-    .select('tenant_id')
+    .select('tenant_id, verification')
     .eq('id', utilizadorId)
     .single();
 
   if (erroUser || !utilizador) {
     throw new Error(erroUser?.message ?? 'Utilizador não encontrado.');
+  }
+
+  // Ninguém se verifica a si próprio, nem verifica a sua própria empresa.
+  //
+  // A base de dados já recusa isto quando a decisão chega pela sessão, mas
+  // esta via usa a chave de serviço — que não tem JWT e, portanto, escapa ao
+  // gatilho. A barreira tem de estar aqui, onde se sabe quem está a decidir.
+  if (utilizadorId === admin.user.id) {
+    throw new Error('Não é possível decidir sobre a sua própria verificação.');
+  }
+  if (utilizador.tenant_id === admin.tenant.id) {
+    throw new Error('Não é possível decidir sobre uma conta da sua própria empresa.');
   }
 
   const status = aprovar ? 'APPROVED' : 'REJECTED';
@@ -371,6 +422,10 @@ export async function decidirVerificacao(
     tenant_id: utilizador.tenant_id,
     admin_id: admin.user.id,
     action: aprovar ? 'VERIFICATION_APPROVED' : 'VERIFICATION_REJECTED',
+    entity_type: 'user',
+    entity_id: utilizadorId,
+    estado_anterior: utilizador.verification,
+    estado_novo: status,
     reason: aprovar ? null : razao,
     comment: `${documentosAfetados} documento(s) abrangido(s) de ${ids.length} indicado(s).`,
   });
@@ -379,11 +434,36 @@ export async function decidirVerificacao(
     console.error('Falha ao registar auditoria de verificação:', erroAuditoria.message);
   }
 
+  // A pontuação de confiança depende directamente deste estado. Recalcular
+  // aqui evita que fique desactualizada até à passagem nocturna.
+  await recalcularPontuacao(supabase, utilizadorId);
+
   revalidatePath('/admin/verificacoes');
   revalidatePath('/admin/trust');
   revalidatePath('/painel');
+  revalidatePath('/confianca');
 
   return { documentosAfetados, documentosIndicados: ids.length };
+}
+
+/**
+ * Recálculo da pontuação de confiança.
+ *
+ * A RPC só está disponível ao servidor. Se não estiver acessível (por exemplo
+ * porque esta chamada caiu no cliente de sessão em vez da chave de serviço), a
+ * decisão administrativa não deve falhar por causa disso — a tarefa nocturna
+ * volta a pôr tudo em dia.
+ */
+async function recalcularPontuacao(
+  supabase: ReturnType<typeof getAdminSupabase>,
+  utilizadorId: string,
+) {
+  const { error } = await supabase.rpc('cf_recalcular_trust_score', {
+    p_user_id: utilizadorId,
+  });
+  if (error) {
+    console.error('Não foi possível recalcular a pontuação de confiança:', error.message);
+  }
 }
 
 /** Documentos carregados por uma empresa, para o administrador rever */
@@ -419,6 +499,9 @@ export interface DocumentoPendente {
   tenant_id: string;
   tenant_nome: string;
   utilizador_nome: string | null;
+  utilizador_id: string | null;
+  verification: string;
+  veiculo: string | null;
 }
 
 export async function documentosPendentesAvulsos(): Promise<DocumentoPendente[]> {
@@ -429,9 +512,11 @@ export async function documentosPendentesAvulsos(): Promise<DocumentoPendente[]>
     .from('documents')
     .select(
       'id, type, file_url, document_number, expires_at, created_at, tenant_id, ' +
-        'tenant:tenants(name), utilizador:users!user_id(full_name)',
+        'user_id, verification, tenant:tenants(name), utilizador:users!user_id(full_name), ' +
+        'veiculo:vehicles(plate)',
     )
-    .eq('verification', 'PENDING')
+    // "Em análise" continua na fila: alguém já lhe pegou, mas ainda não decidiu.
+    .in('verification', ['PENDING', 'UNDER_REVIEW'])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -449,31 +534,167 @@ export async function documentosPendentesAvulsos(): Promise<DocumentoPendente[]>
     tenant_id: d.tenant_id,
     tenant_nome: d.tenant?.name ?? 'Sem nome',
     utilizador_nome: d.utilizador?.full_name ?? null,
+    utilizador_id: d.user_id ?? null,
+    verification: d.verification,
+    veiculo: d.veiculo?.plate ?? null,
   })) as DocumentoPendente[];
 }
 
+/**
+ * As quatro decisões possíveis sobre um documento.
+ *
+ * `EM_ANALISE` existe porque a revisão nem sempre é instantânea: marcar um
+ * documento como em análise diz ao utilizador que alguém já lhe pegou, e tira-o
+ * da fila dos que ninguém viu.
+ *
+ * `REENVIAR` é diferente de `REJEITAR`: o documento não serve, mas o problema é
+ * a submissão (ilegível, cortada, fora de validade) e não o conteúdo. O
+ * utilizador percebe que deve mandar outro em vez de contestar.
+ */
+export type DecisaoDocumento = 'APROVAR' | 'REJEITAR' | 'EM_ANALISE' | 'REENVIAR';
+
+const DECISOES: Record<
+  DecisaoDocumento,
+  { estado: string; accao: string; motivoPorOmissao: string | null }
+> = {
+  APROVAR: { estado: 'APPROVED', accao: 'DOCUMENT_APPROVED', motivoPorOmissao: null },
+  REJEITAR: {
+    estado: 'REJECTED',
+    accao: 'DOCUMENT_REJECTED',
+    motivoPorOmissao: 'Documentação incompleta ou não legível',
+  },
+  EM_ANALISE: { estado: 'UNDER_REVIEW', accao: 'DOCUMENT_APPROVED', motivoPorOmissao: null },
+  REENVIAR: {
+    estado: 'REJECTED',
+    accao: 'DOCUMENT_REJECTED',
+    motivoPorOmissao: 'É necessária uma nova submissão deste documento.',
+  },
+};
+
 export async function decidirDocumentoAvulso(
   documentoId: string,
-  aprovar: boolean,
+  decisao: DecisaoDocumento,
   motivo?: string,
 ) {
-  const perfil = await exigirAdmin();
+  const admin = await exigirAdmin();
   const supabase = getAdminSupabase();
 
-  const status = aprovar ? 'APPROVED' : 'REJECTED';
+  const regra = DECISOES[decisao];
+  if (!regra) throw new Error('Decisão desconhecida.');
+
+  const { data: documento, error: erroLeitura } = await supabase
+    .from('documents')
+    .select('id, tenant_id, user_id, type, verification')
+    .eq('id', documentoId)
+    .single();
+
+  if (erroLeitura || !documento) {
+    throw new Error(erroLeitura?.message ?? 'Documento não encontrado.');
+  }
+
+  // Ninguém aprova documentos da sua própria empresa.
+  if (documento.tenant_id === admin.tenant.id) {
+    throw new Error('Não é possível decidir sobre documentos da sua própria empresa.');
+  }
+
+  const agora = new Date().toISOString();
+  const razao = motivo?.trim() || regra.motivoPorOmissao;
+
+  if (decisao === 'REJEITAR' && !razao) {
+    throw new Error('É obrigatório indicar o motivo da rejeição.');
+  }
 
   const { error } = await supabase
     .from('documents')
     .update({
-      verification: status,
-      verified_by: perfil.user.id,
-      verified_at: new Date().toISOString(),
-      rejection_reason: aprovar ? null : (motivo ?? 'Documentação incompleta ou não legível'),
-      updated_at: new Date().toISOString(),
+      verification: regra.estado,
+      // "Em análise" ainda não é uma decisão: não carimba revisor nem data.
+      verified_by: decisao === 'EM_ANALISE' ? null : admin.user.id,
+      verified_at: decisao === 'EM_ANALISE' ? null : agora,
+      rejection_reason: decisao === 'APROVAR' ? null : razao,
+      updated_at: agora,
     })
     .eq('id', documentoId);
 
   if (error) throw new Error(error.message);
 
+  const { error: erroAuditoria } = await supabase.from('verification_audit_log').insert({
+    user_id: documento.user_id,
+    tenant_id: documento.tenant_id,
+    document_id: documentoId,
+    admin_id: admin.user.id,
+    action: regra.accao,
+    entity_type: 'document',
+    entity_id: documentoId,
+    estado_anterior: documento.verification,
+    estado_novo: regra.estado,
+    reason: razao,
+    comment: decisao === 'REENVIAR' ? 'Pedida nova submissão.' : null,
+    metadata: { tipo: documento.type, decisao },
+  });
+
+  if (erroAuditoria) {
+    console.error('Falha ao registar auditoria do documento:', erroAuditoria.message);
+  }
+
+  if (documento.user_id) {
+    await recalcularPontuacao(supabase, documento.user_id);
+  }
+
   revalidatePath('/admin/documentos');
+  revalidatePath('/admin/trust');
+  revalidatePath('/confianca');
+  revalidatePath('/frota');
+}
+
+export interface DecisaoRegistada {
+  id: string;
+  action: string;
+  entity_type: string | null;
+  estado_anterior: string | null;
+  estado_novo: string | null;
+  reason: string | null;
+  comment: string | null;
+  created_at: string;
+  administrador: string | null;
+}
+
+/**
+ * Histórico de decisões sobre uma conta — tudo o que a plataforma já decidiu
+ * sobre este utilizador, por ordem inversa.
+ */
+export async function historicoDeDecisoes(
+  utilizadorId: string,
+  limite = 20,
+): Promise<DecisaoRegistada[]> {
+  await exigirAdmin();
+  const supabase = getAdminSupabase();
+
+  const { data, error } = await supabase
+    .from('verification_audit_log')
+    .select(
+      'id, action, entity_type, estado_anterior, estado_novo, reason, comment, created_at, ' +
+        'admin:users!verification_audit_log_admin_id_fkey(full_name)',
+    )
+    .eq('user_id', utilizadorId)
+    .order('created_at', { ascending: false })
+    .limit(limite);
+
+  if (error) {
+    console.error('Erro ao ler o histórico de decisões:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((d: any) => ({
+    id: d.id,
+    action: d.action,
+    entity_type: d.entity_type,
+    estado_anterior: d.estado_anterior,
+    estado_novo: d.estado_novo,
+    reason: d.reason,
+    comment: d.comment,
+    created_at: d.created_at,
+    // Sem administrador significa decisão automática do sistema.
+    administrador: d.admin?.full_name ?? null,
+  }));
 }

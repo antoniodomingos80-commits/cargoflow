@@ -7,6 +7,8 @@ import { createClient, getSessionProfile } from '@/lib/supabase/server';
 import { garantirContaAtiva } from '@/lib/seguranca/conta';
 import { traduzirErro } from '@/lib/erros';
 import { notificarMatchesDeViagem } from '@/lib/matching/notificacoes';
+import { avaliarElegibilidade } from '@/lib/frota/elegibilidade';
+import type { EstadoCompliance } from '@/lib/types';
 
 const viagemSchema = z
   .object({
@@ -38,6 +40,51 @@ export type EstadoViagem = {
 };
 
 const PERFIS_PODEM_PUBLICAR_VIAGEM = ['CARRIER', 'COMPANY_ADMIN', 'COMPANY_STAFF', 'PLATFORM_ADMIN'];
+
+/**
+ * Barreira de elegibilidade do veículo.
+ *
+ * Devolve o erro a mostrar, ou `null` quando o veículo pode operar.
+ *
+ * Isto NÃO é a segurança: a política RESTRICTIVE `trips_veiculo_elegivel` e o
+ * gatilho `zz_trips_veiculo_elegivel` recusam a escrita mesmo que alguém
+ * ignore a aplicação e chame o PostgREST directamente. Isto existe para dar
+ * uma frase em português em vez de um erro de base de dados, e para não
+ * escrever nada quando já se sabe que vai ser recusado.
+ */
+async function garantirVeiculoElegivel(
+  supabase: ReturnType<typeof createClient>,
+  veiculoId: string,
+): Promise<EstadoViagem | null> {
+  const { data: linha } = await supabase
+    .from('vehicle_compliance')
+    .select('estado_compliance, tipos_em_falta')
+    .eq('vehicle_id', veiculoId)
+    .maybeSingle();
+
+  const { data: v } = await supabase
+    .from('vehicles')
+    .select('verification')
+    .eq('id', veiculoId)
+    .maybeSingle();
+
+  const { elegivel, motivo } = avaliarElegibilidade(
+    String(v?.verification ?? 'PENDING'),
+    (linha?.estado_compliance ?? 'pending') as EstadoCompliance,
+    linha?.tipos_em_falta ?? [],
+  );
+
+  if (elegivel) return null;
+
+  return {
+    erros: {
+      vehicleId: [
+        `Este veículo não está elegível para operar: ${(motivo ?? '').toLowerCase()}. ` +
+          'Regularize a documentação na área de Frota.',
+      ],
+    },
+  };
+}
 
 export async function criarViagem(
   _anterior: EstadoViagem,
@@ -86,6 +133,9 @@ export async function criarViagem(
     .single();
 
   if (!veiculo) return { erro: 'Veículo não encontrado.' };
+
+  const barreira = await garantirVeiculoElegivel(supabase, d.vehicleId);
+  if (barreira) return barreira;
 
   if (d.availableWeightKg > Number(veiculo.max_weight_kg)) {
     return {
@@ -208,6 +258,14 @@ export async function editarViagem(
     .single();
 
   if (!veiculo) return { erro: 'Veículo não encontrado.' };
+
+  // Só quando o veículo muda: um camião que ficou não elegível depois da
+  // viagem ter sido publicada não deve impedir o camionista de corrigir o
+  // preço ou de cancelar.
+  if (d.vehicleId !== atual.vehicle_id) {
+    const barreira = await garantirVeiculoElegivel(supabase, d.vehicleId);
+    if (barreira) return barreira;
+  }
 
   if (d.availableWeightKg > Number(veiculo.max_weight_kg)) {
     return {
