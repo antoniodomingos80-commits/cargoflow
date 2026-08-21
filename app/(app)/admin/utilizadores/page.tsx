@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { RotateCcw } from 'lucide-react';
 import { listarUtilizadores, suspenderUtilizador, ativarUtilizador } from '@/lib/admin/utilizadores';
 import { UtilizadorCard } from '@/components/admin/UtilizadorCard';
 
@@ -69,34 +72,31 @@ export default function UtilizadoresPage() {
   });
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Utilizadores</h1>
-          <p className="text-gray-600">Gerenciar contas</p>
-        </div>
-        <button
-          onClick={carregarUtilizadores}
-          disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-50"
-        >
-          🔄 Recarregar
-        </button>
-      </div>
+    <PageContainer largura="larga">
+      <PageHeader
+        titulo="Utilizadores"
+        descricao={`${usuarios.length} ${usuarios.length === 1 ? 'conta registada' : 'contas registadas'} na plataforma.`}
+        accoes={
+          <Button variant="outline" size="sm" onClick={carregarUtilizadores} loading={loading}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Recarregar
+          </Button>
+        }
+      />
 
-      {erro && <div className="mb-4 p-3 bg-red-100 rounded text-red-700">{erro}</div>}
+      {erro && (
+        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {erro}
+        </p>
+      )}
 
-      <div className="mb-4 p-3 bg-blue-50 rounded">
-        <p className="text-sm"><span className="font-bold text-lg">{usuarios.length}</span> utilizadores totais</p>
-      </div>
-
-      <div className="mb-4 flex gap-2 flex-wrap">
+      <div className="flex flex-wrap gap-2">
         {['TODOS', 'ATIVOS', 'SUSPENSOS', 'VERIFICADOS'].map(f => (
           <button
             key={f}
             onClick={() => setFiltro(f)}
-            className={`px-3 py-1 rounded text-sm font-semibold ${
-              filtro === f ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'
+            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              filtro === f ? 'bg-navy-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'
             }`}
           >
             {f} ({usuarios.filter(u => {
@@ -161,6 +161,6 @@ export default function UtilizadoresPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

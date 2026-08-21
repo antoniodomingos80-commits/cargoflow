@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { operacoesPlataforma, indicadoresPlataforma } from '@/lib/admin/actions';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LOAD_STATUS_LABELS, LOAD_STATUS_BADGE, type LoadStatus } from '@/lib/types';
@@ -14,13 +15,11 @@ export default async function PaginaOperacoes() {
   ]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">Operações</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Todas as cargas ativas e concluídas na plataforma.
-        </p>
-      </header>
+    <PageContainer largura="larga">
+      <PageHeader
+        titulo="Operações"
+        descricao="Todas as cargas ativas e concluídas na plataforma."
+      />
 
       {indicadores && (
         <div className="grid gap-4 sm:grid-cols-3">
@@ -131,7 +130,7 @@ export default async function PaginaOperacoes() {
           })}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

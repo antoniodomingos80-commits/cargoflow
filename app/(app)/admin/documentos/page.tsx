@@ -1,4 +1,6 @@
 import { decidirDocumentoAvulso, documentosPendentesAvulsos } from '@/lib/admin/actions';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
 import { urlDocumento } from '@/lib/documentos/actions';
 import { DOCUMENT_TYPE_LABELS, type DocumentType } from '@/lib/types';
 
@@ -15,20 +17,16 @@ export default async function AdminDocumentosPage() {
   );
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-navy-600">Documentos</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Documentos carregados por contas já aprovadas — não estão ligados a uma
-          verificação inicial de utilizador, por isso precisam de ser revistos aqui.
-        </p>
-      </div>
-
-      <div className="mb-6 rounded border border-blue-200 bg-blue-50 p-4">
-        <p className="text-sm text-blue-900">
-          <span className="text-lg font-bold">{documentos.length}</span> documentos pendentes
-        </p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        titulo="Documentos"
+        descricao="Documentos carregados por contas já aprovadas — não estão ligados a uma verificação inicial de utilizador, por isso precisam de ser revistos aqui."
+        accoes={
+          <Badge tom={documentos.length > 0 ? 'destaque' : 'neutro'}>
+            {documentos.length} {documentos.length === 1 ? 'pendente' : 'pendentes'}
+          </Badge>
+        }
+      />
 
       {documentosComUrl.length === 0 ? (
         <div className="rounded bg-gray-50 py-12 text-center">
@@ -111,6 +109,6 @@ export default async function AdminDocumentosPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

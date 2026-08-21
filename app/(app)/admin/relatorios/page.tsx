@@ -1,4 +1,5 @@
 import { indicadoresPlataforma, operacoesPlataforma } from '@/lib/admin/actions';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { formatCurrency } from '@/lib/utils';
 import { Activity, BarChart3, CheckCircle2, Clock3, Users } from 'lucide-react';
 
@@ -20,13 +21,11 @@ export default async function PaginaRelatoriosAdmin() {
     .slice(0, 5);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">Relatórios</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Indicadores globais da plataforma e distribuição operacional.
-        </p>
-      </header>
+    <PageContainer largura="larga">
+      <PageHeader
+        titulo="Relatórios"
+        descricao="Indicadores globais da plataforma e distribuição operacional."
+      />
 
       {indicadores && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -81,7 +80,7 @@ export default async function PaginaRelatoriosAdmin() {
           {' '}Use este relatório para identificar gargalos de verificação e carga em trânsito.
         </p>
       </div>
-    </div>
+    </PageContainer>
   );
 }
 

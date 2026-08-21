@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { getSessionProfile } from '@/lib/supabase/server';
 import { listarUtilizadores } from '@/lib/admin/utilizadores';
 import {
@@ -42,14 +43,11 @@ export default async function TrustPage() {
     }));
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-navy-600">Trust Layer</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Requisitos de documentação, contas bloqueadas e histórico das decisões de
-          verificação.
-        </p>
-      </header>
+    <PageContainer largura="larga">
+      <PageHeader
+        titulo="Trust Layer"
+        descricao="Requisitos de documentação, contas bloqueadas e histórico das decisões de verificação."
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
@@ -59,6 +57,6 @@ export default async function TrustPage() {
 
         <AuditLogCard registos={auditoria} />
       </div>
-    </div>
+    </PageContainer>
   );
 }

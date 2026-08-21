@@ -1,4 +1,8 @@
 import { decidirVerificacao, documentosDoTenant, verificacoesPendentes } from '@/lib/admin/actions';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ShieldCheck } from 'lucide-react';
 import { urlDocumento } from '@/lib/documentos/actions';
 import { DOCUMENT_TYPE_LABELS, type DocumentType } from '@/lib/types';
 
@@ -24,26 +28,23 @@ export default async function VerificacoesPage() {
   );
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-navy-600">Verificações</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Revisa a identidade, a documentação e o estado do utilizador antes de aprovar ou rejeitar.
-          </p>
-        </div>
-      </div>
-
-      <div className="mb-6 rounded border border-blue-200 bg-blue-50 p-4">
-        <p className="text-sm text-blue-900">
-          <span className="text-lg font-bold">{usuarios.length}</span> utilizadores pendentes
-        </p>
-      </div>
+    <PageContainer largura="larga">
+      <PageHeader
+        titulo="Verificações"
+        descricao="Revisa a identidade, a documentação e o estado do utilizador antes de aprovar ou rejeitar."
+        accoes={
+          <Badge tom={usuarios.length > 0 ? 'destaque' : 'positivo'}>
+            {usuarios.length} {usuarios.length === 1 ? 'pendente' : 'pendentes'}
+          </Badge>
+        }
+      />
 
       {usuariosComDocumentos.length === 0 ? (
-        <div className="rounded bg-gray-50 py-12 text-center">
-          <p className="font-semibold text-gray-600">Nenhum pendente.</p>
-        </div>
+        <EmptyState
+          icone={ShieldCheck}
+          titulo="Nada pendente"
+          texto="Não há contas à espera de verificação neste momento."
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {usuariosComDocumentos.map((u) => (
@@ -154,6 +155,6 @@ export default async function VerificacoesPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

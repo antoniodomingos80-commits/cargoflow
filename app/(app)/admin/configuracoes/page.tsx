@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { indicadoresPlataforma } from '@/lib/admin/actions';
 import { Shield, Settings, Users, ArrowRight } from 'lucide-react';
 import { classesBotao } from '@/components/ui/button';
@@ -9,13 +10,11 @@ export default async function PaginaConfiguracoesAdmin() {
   const indicadores = await indicadoresPlataforma();
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">Configurações da plataforma</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Painel administrativo para governação, revisão e controlo operacional.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        titulo="Configurações da plataforma"
+        descricao="Painel administrativo para governação, revisão e controlo operacional."
+      />
 
       <section className="grid gap-4 sm:grid-cols-3">
         <Cartao
@@ -66,7 +65,7 @@ export default async function PaginaConfiguracoesAdmin() {
           Abrir configurações
         </Link>
       </section>
-    </div>
+    </PageContainer>
   );
 }
 
