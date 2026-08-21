@@ -1,7 +1,36 @@
-﻿-- Trust Layer Foundation - Minimal Tables
-CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS \\$\ BEGIN NEW.updated_at = NOW(); RETURN NEW; END; \\$\ LANGUAGE plpgsql;
+-- Trust Layer Foundation - Minimal Tables
+-- Reparado a 21/08/2026. A linha original era:
+--
+--   ... RETURNS TRIGGER AS <barra-invertida>$<barra-invertida> BEGIN ... LANGUAGE plpgsql;
+--
+-- As aspas em dólar estavam escapadas como se o ficheiro tivesse passado por
+-- uma camada de shell antes de ser gravado. O psql lê o `\` no início de
+-- linha como meta-comando, desiste — e sai com código 0, o que faz a falha
+-- passar despercebida. O ficheiro tinha também um BOM invisível, agora
+-- removido.
+--
+-- O corpo abaixo é o que corre em produção, com os CRLF que lá tem.
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN 
+  NEW.updated_at = NOW(); 
+  RETURN NEW; 
+END; 
+$function$;
 CREATE TYPE verification_action AS ENUM ('DOCUMENT_APPROVED','DOCUMENT_REJECTED','DOCUMENT_EXPIRED','USER_BLOCKED','USER_UNBLOCKED','VERIFICATION_APPROVED','VERIFICATION_REJECTED','TRUST_SCORE_RECALCULATED','VERIFICATION_REQUIREMENTS_UPDATED');
-CREATE TABLE user_blocklist (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE, reason TEXT NOT NULL, reason_code VARCHAR(50), blocked_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT, blocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), unblocked_at TIMESTAMPTZ, unblocked_by UUID REFERENCES users(id) ON DELETE RESTRICT, is_active BOOLEAN NOT NULL DEFAULT TRUE, metadata JSONB DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), CONSTRAINT no_duplicate_active_blocks UNIQUE (user_id, is_active) WHERE is_active = TRUE);
+CREATE TABLE user_blocklist (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE, reason TEXT NOT NULL, reason_code VARCHAR(50), blocked_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT, blocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), unblocked_at TIMESTAMPTZ, unblocked_by UUID REFERENCES users(id) ON DELETE RESTRICT, is_active BOOLEAN NOT NULL DEFAULT TRUE, metadata JSONB DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+-- Reparado a 21/08/2026. O ficheiro original declarava, dentro do CREATE TABLE:
+--
+--   CONSTRAINT no_duplicate_active_blocks UNIQUE (user_id, is_active)
+--     WHERE is_active = TRUE
+--
+-- O PostgreSQL não aceita restrições UNIQUE parciais — um WHERE só é
+-- possível num índice. Esta linha nunca correu; a produção tem, em vez
+-- dela, o índice único parcial abaixo, que é o que aqui se repõe.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_blocklist_no_duplicate_active
+  ON public.user_blocklist USING btree (user_id, is_active) WHERE (is_active = true);
 CREATE INDEX idx_user_blocklist_user_active ON user_blocklist(user_id, is_active);
 CREATE INDEX idx_user_blocklist_tenant ON user_blocklist(tenant_id, is_active);
 CREATE INDEX idx_user_blocklist_blocked_at ON user_blocklist(blocked_at DESC);

@@ -13,7 +13,14 @@
     "test:seguranca": "node tests/seguranca-bloqueio.mjs",
     "test:trust": "node --experimental-strip-types tests/trust-score.mjs",
     "test:elegibilidade": "node --experimental-strip-types --import ./tests/alias-register.mjs tests/elegibilidade-veiculo.mjs",
-    "test": "npm run test:seguranca && npm run test:trust && npm run test:elegibilidade"
+    "test:paridade-sql": "node tests/paridade-funcoes-sql.mjs",
+    "test:sql-security": "node tests/sql-security.mjs",
+    "test:schema": "node tests/schema.mjs",
+    "test": "npm run test:seguranca && npm run test:trust && npm run test:elegibilidade && npm run test:paridade-sql && npm run test:sql-security && npm run test:schema && npm run test:triggers && npm run test:reconstruction && npm run test:rls",
+    "test:triggers": "node tests/paridade-triggers.mjs",
+    "test:reconstruction": "node tests/reconstrucao.mjs",
+    "test:rls": "node tests/rls.mjs",
+    "test:seguranca-estrutural": "node tests/seguranca-estrutural.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
