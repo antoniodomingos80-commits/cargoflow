@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { createClient, getSessionProfile } from '@/lib/supabase/server';
 import { formatCurrency } from '@/lib/utils';
 import { BarChart3, Package, Truck, CheckCircle2 } from 'lucide-react';
@@ -82,13 +83,11 @@ export default async function PaginaRelatorios() {
   }));
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">Relatórios</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Visão rápida da atividade da sua empresa nos últimos meses.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        titulo="Relatórios"
+        descricao="Visão rápida da atividade da sua empresa nos últimos meses."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi icone={Package} titulo="Cargas ativas" valor={cargasAtivas} />
@@ -124,7 +123,7 @@ export default async function PaginaRelatorios() {
           </table>
         </div>
       </section>
-    </div>
+    </PageContainer>
   );
 }
 

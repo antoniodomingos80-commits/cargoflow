@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { getSessionProfile } from '@/lib/supabase/server';
 import { ROLE_LABELS } from '@/lib/types';
 import { FormularioConfiguracoes } from './formulario';
@@ -12,13 +13,11 @@ export default async function PaginaConfiguracoes() {
   const podeEditarEmpresa = ['COMPANY_ADMIN', 'PLATFORM_ADMIN'].includes(perfil.user.role);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">Configurações</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Gerir perfil, empresa e preferências base da sua conta.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        titulo="Configurações"
+        descricao="Gerir perfil, empresa e preferências base da sua conta."
+      />
 
       <div className="cf-card p-4 text-sm text-slate-600">
         <p>
@@ -54,6 +53,6 @@ export default async function PaginaConfiguracoes() {
         }}
         podeEditarEmpresa={podeEditarEmpresa}
       />
-    </div>
+    </PageContainer>
   );
 }

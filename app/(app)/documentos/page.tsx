@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { getSessionProfile } from '@/lib/supabase/server';
 import { listarDocumentos, apagarDocumento, urlDocumento } from '@/lib/documentos/actions';
 import { FormularioDocumento } from './formulario';
@@ -45,16 +46,12 @@ export default async function PaginaDocumentos() {
   );
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-navy-600">Documentos</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            A verificação é o que dá confiança à outra parte do negócio.
-          </p>
-        </div>
-        <FormularioDocumento perfilCarrier={ehTransportador} />
-      </header>
+    <PageContainer largura="estreita">
+      <PageHeader
+        titulo="Documentos"
+        descricao="A verificação é o que dá confiança à outra parte do negócio."
+        accoes={<FormularioDocumento perfilCarrier={ehTransportador} />}
+      />
 
       {porVerificar && (
         <div className="cf-card flex items-start gap-4 border-accent-200 bg-accent-50/60 p-5">
@@ -190,6 +187,6 @@ export default async function PaginaDocumentos() {
           })}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

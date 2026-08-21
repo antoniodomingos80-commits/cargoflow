@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { redirect } from 'next/navigation';
 import { getSessionProfile } from '@/lib/supabase/server';
 import { listarConversas } from '@/lib/mensagens/actions';
@@ -16,17 +17,17 @@ export default async function PaginaMensagens() {
   const porLer = conversas.reduce((s, c) => s + Number(c.por_ler), 0);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">Mensagens</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {conversas.length === 0
+    <PageContainer largura="estreita">
+      <PageHeader
+        titulo="Mensagens"
+        descricao={
+          conversas.length === 0
             ? 'As conversas abrem automaticamente quando há uma proposta.'
             : porLer > 0
               ? `${porLer} ${porLer === 1 ? 'mensagem por ler' : 'mensagens por ler'}`
-              : `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'}`}
-        </p>
-      </header>
+              : `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'}`
+        }
+      />
 
       {conversas.length === 0 ? (
         <EmptyState
@@ -124,6 +125,6 @@ export default async function PaginaMensagens() {
           })}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

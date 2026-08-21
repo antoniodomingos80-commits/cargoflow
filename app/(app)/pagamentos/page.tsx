@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import {
   estadoKycPagamentos,
   listarAcordosParaPagamento,
@@ -48,13 +49,11 @@ export default async function PaginaPagamentos({
   const canceladoStripe = sp.cancelado === 'stripe';
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">Pagamentos</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Cobrança de acordos via Stripe e referência Multicaixa.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        titulo="Pagamentos"
+        descricao="Cobrança de acordos via Stripe e referência Multicaixa."
+      />
 
       {sucessoStripe && (
         <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -129,7 +128,7 @@ export default async function PaginaPagamentos({
       </p>
 
       <HistoricoPagamentos historico={historico} />
-    </div>
+    </PageContainer>
   );
 }
 

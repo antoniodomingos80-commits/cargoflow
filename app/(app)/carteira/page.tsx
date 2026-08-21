@@ -1,4 +1,5 @@
 import { listarCarteira, pedirLevantamento } from '@/lib/wallet/actions';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatCurrency } from '@/lib/utils';
 import { PiggyBank, Clock, CheckCircle2 } from 'lucide-react';
@@ -51,14 +52,11 @@ export default async function PaginaCarteira({
   const sucesso = sp.sucesso === 'levantamento';
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">Carteira</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          O valor de cada pagamento fica retido até a entrega ser confirmada, depois fica disponível para
-          levantar.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        titulo="Carteira"
+        descricao="O valor de cada pagamento fica retido até a entrega ser confirmada, depois fica disponível para levantar."
+      />
 
       {sucesso && (
         <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -168,6 +166,6 @@ export default async function PaginaCarteira({
           </div>
         )}
       </section>
-    </div>
+    </PageContainer>
   );
 }
