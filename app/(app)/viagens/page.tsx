@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { redirect } from 'next/navigation';
 import { getSessionProfile } from '@/lib/supabase/server';
 import { listarMinhasViagens } from '@/lib/viagens/actions';
@@ -33,23 +34,23 @@ export default async function PaginaMinhasViagens() {
   const viagens = (await listarMinhasViagens()) as any[];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-navy-600">As minhas viagens</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {viagens.length === 0
-              ? 'Ainda não publicou nenhuma viagem.'
-              : `${viagens.length} ${viagens.length === 1 ? 'viagem' : 'viagens'}`}
-          </p>
-        </div>
-        <Link href="/viagens/nova">
-          <Button>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Publicar viagem
-          </Button>
-        </Link>
-      </header>
+    <PageContainer>
+      <PageHeader
+        titulo="As minhas viagens"
+        descricao={
+          viagens.length === 0
+            ? 'Ainda não publicou nenhuma viagem.'
+            : `${viagens.length} ${viagens.length === 1 ? 'viagem' : 'viagens'}`
+        }
+        accoes={
+          <Link href="/viagens/nova">
+            <Button>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Publicar viagem
+            </Button>
+          </Link>
+        }
+      />
 
       {viagens.length === 0 ? (
         <EmptyState
@@ -114,6 +115,6 @@ export default async function PaginaMinhasViagens() {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

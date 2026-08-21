@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { redirect } from 'next/navigation';
 import { getSessionProfile } from '@/lib/supabase/server';
 import { listarEmTransito } from '@/lib/rastreio/actions';
@@ -26,17 +27,15 @@ export default async function PaginaRastreioLista() {
   );
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">
-          {ehTransportador ? 'Entregas' : 'Acompanhar'}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {cargas.length === 0
+    <PageContainer>
+      <PageHeader
+        titulo={ehTransportador ? 'Entregas' : 'Acompanhar'}
+        descricao={
+          cargas.length === 0
             ? 'Nenhuma carga em curso neste momento.'
-            : `${cargas.length} ${cargas.length === 1 ? 'operação em curso' : 'operações em curso'}`}
-        </p>
-      </header>
+            : `${cargas.length} ${cargas.length === 1 ? 'operação em curso' : 'operações em curso'}`
+        }
+      />
 
       {cargas.length === 0 ? (
         <EmptyState
@@ -103,6 +102,6 @@ export default async function PaginaRastreioLista() {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

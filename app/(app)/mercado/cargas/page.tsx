@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { redirect } from 'next/navigation';
 import { getSessionProfile } from '@/lib/supabase/server';
 import { listarMercadoCargas, listarLocalidades } from '@/lib/cargas/actions';
@@ -35,13 +36,11 @@ export default async function PaginaMercadoCargas({
   const cargasRefrigeradas = cargas.filter((carga) => carga.requires_refrigeration).length;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">Cargas disponíveis</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Encontre carga para as suas rotas — incluindo o percurso de retorno.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        titulo="Cargas disponíveis"
+        descricao="Encontre carga para as suas rotas — incluindo o percurso de retorno."
+      />
 
       {/* Filtros */}
       <form className="cf-card p-5">
@@ -155,6 +154,6 @@ export default async function PaginaMercadoCargas({
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

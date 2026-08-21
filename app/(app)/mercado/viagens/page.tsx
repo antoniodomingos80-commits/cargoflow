@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PageContainer, PageHeader } from '@/components/ui/page-header';
 import { redirect } from 'next/navigation';
 import { getSessionProfile } from '@/lib/supabase/server';
 import { listarMercadoViagens } from '@/lib/viagens/actions';
@@ -44,13 +45,11 @@ export default async function PaginaMercadoViagens({
   const viagensComEspaco = viagens.filter((viagem) => Number(viagem.available_weight_kg) >= 10000).length;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-navy-600">Transporte disponível</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Camiões com espaço livre nas próximas viagens.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        titulo="Transporte disponível"
+        descricao="Camiões com espaço livre nas próximas viagens."
+      />
 
       <form className="cf-card p-5">
         <div className="flex items-center gap-2 text-sm font-medium text-navy-600">
@@ -226,6 +225,6 @@ export default async function PaginaMercadoViagens({
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
