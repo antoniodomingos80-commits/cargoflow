@@ -16,6 +16,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
+      // Superfície pública do mercado. `changeFrequency: 'daily'` porque as
+      // cargas entram e saem da vista todos os dias — a vista só mostra o que
+      // está publicado, por atribuir e dentro da janela de recolha.
+      //
+      // As páginas de detalhe (`/mercado/carga/[id]`) NÃO entram aqui: são
+      // dezenas ou centenas, mudam de existência sozinhas quando a carga é
+      // atribuída ou expira, e um sitemap cheio de URLs que passam a 404 vale
+      // menos do que um sitemap curto e verdadeiro. Chegam-se por ligação a
+      // partir desta.
+      url: `${url}/mercado`,
+      lastModified: agora,
+      changeFrequency: 'daily',
+      priority: 0.9,
+    },
+    {
       url: `${url}/entrar`,
       lastModified: agora,
       changeFrequency: 'monthly',

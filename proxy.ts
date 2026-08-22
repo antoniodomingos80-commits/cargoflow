@@ -19,7 +19,18 @@ type CookieParaGravar = { name: string; value: string; options: CookieOptions };
 // `/redefinir` é pública de propósito: quem lá chega pode ter a sessão temporária
 // da ligação de email, mas se ela tiver expirado é a própria página que explica
 // o que aconteceu — melhor do que um salto silencioso para o login.
-const ROTAS_PUBLICAS = ['/', '/entrar', '/registo', '/recuperar', '/redefinir', '/auth'];
+const ROTAS_PUBLICAS = ['/', '/entrar', '/registo', '/recuperar', '/redefinir', '/auth',
+  // Detalhe público de uma carga. O prefixo é `/mercado/carga/` no singular, e
+  // por isso NÃO apanha `/mercado/cargas`, que é a lista autenticada.
+  '/mercado/carga'];
+
+// Rotas públicas que só valem no caminho exacto.
+//
+// `/mercado` tem de estar aqui e não na lista acima: o teste de cima também
+// aceita prefixos, e `/mercado` como prefixo tornaria `/mercado/cargas` e
+// `/mercado/viagens` públicas — que são a área autenticada. O singular
+// `/mercado/carga` não tem esse problema; o `/mercado` sozinho tem.
+const ROTAS_PUBLICAS_EXACTAS = ['/mercado'];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -52,9 +63,11 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const ehPublica = ROTAS_PUBLICAS.some(
-    (rota) => pathname === rota || pathname.startsWith(`${rota}/`),
-  );
+  const ehPublica =
+    ROTAS_PUBLICAS_EXACTAS.includes(pathname) ||
+    ROTAS_PUBLICAS.some(
+      (rota) => pathname === rota || pathname.startsWith(`${rota}/`),
+    );
 
   // Sem sessão numa rota privada → enviar para o login, guardando o destino
   if (!user && !ehPublica) {
@@ -77,7 +90,14 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Tudo exceto ficheiros estáticos e imagens
-    '/((?!_next/static|_next/image|favicon.ico|manifest.json|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // Tudo exceto ficheiros estáticos, imagens e os ficheiros que os
+    // rastreadores vão buscar.
+    //
+    // `sitemap.xml` e `robots.txt` estavam a passar pelo middleware e, por não
+    // constarem das rotas públicas, respondiam 307 para `/entrar`. Um sitemap
+    // que redirecciona para o login não é lido por rastreador nenhum — o que
+    // tornava inútil qualquer entrada lá dentro. Medido com `curl` ao arrancar
+    // a superfície pública do mercado.
+    '/((?!_next/static|_next/image|favicon.ico|manifest.json|sitemap.xml|robots.txt|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

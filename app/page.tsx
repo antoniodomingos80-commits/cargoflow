@@ -93,11 +93,22 @@ export default function PaginaInicial() {
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </Link>
-              <Link href="#como-funciona">
+              {/* Deixa ver o produto antes de pedir a conta: a página é pública
+                  e mostra rota, tipo, peso e janela — sem valores nem contactos. */}
+              <Link href="/mercado">
                 <Button
                   size="lg"
                   variant="outline"
                   className="w-full border-white/25 bg-transparent text-white hover:bg-white/10 sm:w-auto"
+                >
+                  Ver cargas disponíveis
+                </Button>
+              </Link>
+              <Link href="#como-funciona">
+                <Button
+                  size="lg"
+                  variant="ghost"
+                  className="w-full text-white hover:bg-white/10 sm:w-auto"
                 >
                   Como funciona
                 </Button>
