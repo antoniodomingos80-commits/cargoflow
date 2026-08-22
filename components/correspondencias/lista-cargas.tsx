@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Pontuacao, DecomposicaoPontuacao } from './pontuacao';
-import { Button } from '@/components/ui/button';
+import { Button, classesBotao } from '@/components/ui/button';
 import { formatCurrency, formatWeight, formatDistance } from '@/lib/utils';
 import { CARGO_TYPE_LABELS, type CargoType } from '@/lib/types';
 import type { CorrespondenciaCarga } from '@/lib/correspondencias/actions';
@@ -20,8 +20,15 @@ function formatarData(iso: string) {
  */
 export function ListaCargas({
   correspondencias,
+  viagemId,
 }: {
   correspondencias: CorrespondenciaCarga[];
+  /**
+   * Viagem a partir da qual estas correspondências foram calculadas. Segue
+   * para o diálogo de proposta, que a pré-selecciona — quem vem de uma
+   * correspondência não deve ter de voltar a escolher aquilo de onde veio.
+   */
+  viagemId?: string;
 }) {
   if (correspondencias.length === 0) {
     return (
@@ -139,10 +146,26 @@ export function ListaCargas({
                   ) : (
                     <p className="text-sm text-slate-400">Sob proposta</p>
                   )}
-                  <Button size="sm" className="mt-3" disabled>
+                  {/*
+                    Este botão esteve `disabled` desde sempre: aparecia, ficava
+                    cinzento e não fazia nada. O camionista via a carga certa à
+                    frente e não tinha por onde avançar — enquanto o cartão
+                    equivalente do lado do comerciante já tinha acção.
+
+                    Leva agora à página da carga no mercado, que é onde o
+                    diálogo de proposta vive, com a viagem já escolhida.
+                  */}
+                  <Link
+                    href={
+                      viagemId
+                        ? `/mercado/cargas/${m.load_id}?viagem=${viagemId}`
+                        : `/mercado/cargas/${m.load_id}`
+                    }
+                    className={classesBotao({ size: 'sm' }, 'mt-3')}
+                  >
                     <Send className="h-3.5 w-3.5" aria-hidden="true" />
                     Propor
-                  </Button>
+                  </Link>
                 </div>
               </div>
             </div>

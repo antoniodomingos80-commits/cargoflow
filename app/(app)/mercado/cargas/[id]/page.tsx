@@ -30,13 +30,22 @@ function formatarData(iso: string | null) {
  */
 export default async function PaginaCargaMercado({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  /**
+   * `viagem` chega de uma correspondência: o camionista carregou em "Propor"
+   * no cartão de uma carga compatível a partir da sua viagem. Serve para
+   * pré-seleccionar essa viagem no diálogo, em vez de o obrigar a escolher
+   * outra vez aquilo de onde veio.
+   */
+  searchParams: Promise<{ viagem?: string }>;
 }) {
   const perfil = await getSessionProfile();
   if (!perfil) redirect('/entrar');
 
   const routeParams = await params;
+  const { viagem: viagemSugerida } = await searchParams;
 
   const carga = (await obterCarga(routeParams.id)) as unknown as Load | null;
   if (!carga) notFound();
@@ -198,6 +207,14 @@ export default async function PaginaCargaMercado({
               orcamento={carga.budget_amount ? Number(carga.budget_amount) : null}
               moeda={carga.currency}
               viagens={viagensCompativeis}
+              // Só se a viagem sugerida for mesmo uma das compatíveis. Um id
+              // vindo do endereço não pode fazer aparecer no diálogo uma
+              // viagem que não serve para esta carga.
+              viagemSugerida={
+                viagensCompativeis.some((v) => v.id === viagemSugerida)
+                  ? viagemSugerida
+                  : undefined
+              }
             />
           )}
         </div>
