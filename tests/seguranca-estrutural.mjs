@@ -217,28 +217,31 @@ console.log('\n[6] Toda a tabela que aceita escrita tem barreira de conta bloque
 //
 // As excepções são estruturais, não uma lista: tabelas onde `authenticated` não
 // tem privilégio de escrita, e as partições, que herdam a barreira do pai.
-verificar('toda a tabela com escrita concedida tem barreira pode_operar()',
-  consulta(`with escrevivel as (
-              select distinct g.table_name
-              from information_schema.role_table_grants g
-              where g.table_schema='public' and g.grantee='authenticated'
-                and g.privilege_type in ('INSERT','UPDATE','DELETE')
-            ), com_barreira as (
-              select distinct q.tablename
-              from pg_policies q
-              where q.schemaname='public' and q.permissive='RESTRICTIVE'
-                and coalesce(q.qual,'')||coalesce(q.with_check,'') like '%pode_operar%'
-            )
-            select e.table_name from escrevivel e
-            left join com_barreira b on b.tablename = e.table_name
-            join pg_class c on c.relname = e.table_name
-            join pg_namespace n on n.oid = c.relnamespace and n.nspname='public'
-            where b.tablename is null
-              and c.relkind = 'r'
-              and c.relispartition = false
-              and e.table_name <> 'spatial_ref_sys'
+// A primeira versão desta regra perguntava «tem GRANT de escrita?». Quase todas
+// têm — os GRANT do Supabase dão tudo a toda a gente — e por isso acusava 13
+// tabelas, várias delas já negadas pela RLS por não terem política permissiva
+// nenhuma de escrita. Pergunta errada.
+//
+// A pergunta certa é por comando: existe uma política PERMISSIVE que autoriza
+// este INSERT/UPDATE/DELETE? Se existe, tem de existir também uma RESTRICTIVE
+// com `pode_operar()` a fazer AND com ela. Sem permissiva, não há nada a travar.
+verificar('toda a escrita autorizada por política tem barreira pode_operar()',
+  consulta(`with tab as (
+              select c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace
+              where n.nspname='public' and c.relkind='r' and c.relrowsecurity
+                and not c.relispartition
+            ), op as (select unnest(array['INSERT','UPDATE','DELETE']) as cmd)
+            select t.relname || '.' || o.cmd
+            from tab t cross join op o
+            where exists (select 1 from pg_policies q
+                          where q.schemaname='public' and q.tablename=t.relname
+                            and q.permissive='PERMISSIVE' and q.cmd in (o.cmd,'ALL'))
+              and not exists (select 1 from pg_policies q
+                              where q.schemaname='public' and q.tablename=t.relname
+                                and q.permissive='RESTRICTIVE' and q.cmd in (o.cmd,'ALL')
+                                and coalesce(q.qual,'')||coalesce(q.with_check,'') like '%pode_operar%')
             order by 1`),
-  'sem barreira, uma conta suspensa continua a escrever pela API');
+  'decisões documentadas em SECURITY-MODEL-TARGET.md §5 — não são excepções do teste');
 
 // --- resultado -------------------------------------------------------------
 console.log(`\n${passes} regras passaram, ${falhas} falharam\n`);

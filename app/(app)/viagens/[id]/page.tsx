@@ -195,7 +195,7 @@ export default async function PaginaDetalheViagem({
 
       {/* Correspondências — cargas que servem esta viagem */}
       {ehDono && ['PUBLISHED', 'PARTIALLY_BOOKED'].includes(viagem.status) && (
-        <ListaCargas correspondencias={correspondencias} />
+        <ListaCargas correspondencias={correspondencias} viagemId={viagem.id} />
       )}
     </div>
   );

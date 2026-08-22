@@ -24,6 +24,7 @@ DELETE FROM public.reviews;
 DELETE FROM public.messages;
 DELETE FROM public.conversation_participants;
 DELETE FROM public.conversations;
+DELETE FROM public.payments;
 DELETE FROM public.agreements;
 DELETE FROM public.offers;
 DELETE FROM public.matches;
@@ -40,13 +41,16 @@ DELETE FROM public.tenants;
 
 INSERT INTO public.tenants (id, name, slug, type) VALUES
   ('11111111-1111-1111-1111-11111111aaaa','Comércio A','comercio-a','EMPRESA'),
-  ('11111111-1111-1111-1111-11111111bbbb','Transportes B','transportes-b','EMPRESA');
+  ('11111111-1111-1111-1111-11111111bbbb','Transportes B','transportes-b','EMPRESA'),
+  ('11111111-1111-1111-1111-11111111cccc','Alheia C','alheia-c','EMPRESA');
 
 INSERT INTO public.users (id, tenant_id, auth_user_id, email, phone, full_name, role, is_active) VALUES
   ('22222222-2222-2222-2222-22222222aaaa','11111111-1111-1111-1111-11111111aaaa',
    '33333333-3333-3333-3333-33333333aaaa','ana@comercio-a.ao','+244900000001','Ana (empresa A)','MERCHANT',true),
   ('22222222-2222-2222-2222-22222222bbbb','11111111-1111-1111-1111-11111111bbbb',
    '33333333-3333-3333-3333-33333333bbbb','bruno@transportes-b.ao','+244900000002','Bruno (empresa B)','CARRIER',true),
+  ('22222222-2222-2222-2222-22222222cccc','11111111-1111-1111-1111-11111111cccc',
+   '33333333-3333-3333-3333-33333333cccc','carla@alheia-c.ao','+244900000004','Carla (empresa C)','CARRIER',true),
   ('22222222-2222-2222-2222-2222222000ad','11111111-1111-1111-1111-11111111aaaa',
    '33333333-3333-3333-3333-3333333000ad','admin@cargoflow.ao','+244900000003','Admin plataforma','PLATFORM_ADMIN',true);
 
@@ -165,6 +169,26 @@ INSERT INTO public.offers (id, load_id, trip_id, offered_by, amount, status) VAL
   ('aaaa0000-0000-0000-0000-0000000000f3','88888888-0000-0000-0000-0000000000b1',
    '99999999-0000-0000-0000-0000000000b1','22222222-2222-2222-2222-22222222bbbb',470000,'PENDING');
 
+INSERT INTO public.agreements
+  (id, load_id, trip_id, accepted_offer_id, merchant_user_id, carrier_user_id,
+   agreed_amount, terms_snapshot)
+VALUES
+  ('a9999999-0000-0000-0000-00000000ac01','88888888-0000-0000-0000-0000000000a1',
+   '99999999-0000-0000-0000-0000000000b1','aaaa0000-0000-0000-0000-0000000000f1',
+   '22222222-2222-2222-2222-22222222aaaa','22222222-2222-2222-2222-22222222bbbb',
+   450000, '{"nota":"acordo de teste"}'::jsonb);
+
+-- A carga ATRIBUÍDA precisa de ter mesmo uma viagem atribuída: sem isso, a
+-- sonda que verifica se a vista pública a exclui não tem alvo e fica
+-- inconclusiva — que é falha do teste, não prova de nada.
+UPDATE public.loads SET assigned_trip_id = '99999999-0000-0000-0000-0000000000b1'
+ WHERE id = '88888888-0000-0000-0000-0000000000a3';
+
+INSERT INTO public.payments (id, tenant_id, agreement_id, amount, currency, provider, status)
+VALUES ('9a999999-0000-0000-0000-0000000000a1',
+        '11111111-1111-1111-1111-11111111aaaa','a9999999-0000-0000-0000-00000000ac01',
+        450000,'AOA','MULTICAIXA','PENDING');
+
 INSERT INTO public.conversations (id, load_id) VALUES
   ('bbbb0000-0000-0000-0000-0000000000c1','88888888-0000-0000-0000-0000000000a1'),
   ('bbbb0000-0000-0000-0000-0000000000c2','88888888-0000-0000-0000-0000000000b1');
@@ -204,4 +228,5 @@ SELECT 'semente' AS o,
        (SELECT count(*) FROM public.messages) AS mensagens,
        (SELECT count(*) FROM public.documents) AS documentos,
        (SELECT count(*) FROM public.tracking_events) AS rastreio,
-       (SELECT count(*) FROM public.shipment_photos) AS fotos;
+       (SELECT count(*) FROM public.shipment_photos) AS fotos,
+       (SELECT count(*) FROM public.agreements) AS acordos;

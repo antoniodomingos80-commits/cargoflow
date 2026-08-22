@@ -106,8 +106,12 @@ RESTRICTIVE com `pode_operar()`.** A excepção estrutural são as tabelas onde
 **V. O repositório reconstrói a produção.** Enquanto divergirem, uma das duas
 está errada e não se sabe qual.
 
-O invariante **III** tem 13 violações hoje, e nem todas devem ser corrigidas da
-mesma forma — ver §5.
+O invariante **III** contava-se mal ao princípio: 13 tabelas, a partir de «tem
+`GRANT` de escrita?». A contagem certa é por comando — *existe política
+permissiva que autorize este INSERT/UPDATE/DELETE?* Depois de
+`20260828_bloqueio_tabelas_restantes.sql`, restam **16 combinações
+tabela+comando em 7 tabelas**, e nenhuma delas é omissão: são as decisões
+tratadas uma a uma em §5.
 
 ---
 
@@ -178,18 +182,144 @@ diz o que fazer, não «igualar à produção».
 | `documents` | I/U/D | auth | sem barreira | sem barreira | **P1** | criar `documents_bloqueio_*` |
 | `tracking_events`, `tracking_points` | INSERT | auth | sem barreira | sem barreira | **P1** | criar barreira |
 
-Três das treze violações do invariante III **não** devem ganhar barreira:
+### Quais precisam mesmo de barreira
 
-- **`users`** — uma conta bloqueada tem de poder editar o próprio perfil, nem que
-  seja para corrigir dados e pedir revisão.
-- **`notifications`** — marcar como lida não é uma operação de negócio.
-- **`user_blocklist`, `audit_logs`, `verification_audit_log`, `verification_requirements`,
-  `tenants`, `payments`** — já restritas a admin ou a `service_role` por política;
-  uma barreira `pode_operar()` seria redundante e podia trancar o próprio
-  desbloqueio.
+A primeira versão desta secção contava treze tabelas, a partir da pergunta
+«tem `GRANT` de escrita?». A pergunta estava errada: os `GRANT` do Supabase dão
+tudo a toda a gente, e várias dessas tabelas já negam a escrita por não terem
+política **permissiva** nenhuma que a autorize. Sem permissiva não há nada que
+uma barreira possa travar.
 
-Restam **`documents`, `shipment_photos`, `tracking_events`, `tracking_points`,
-`matches`, `locations`** como candidatas reais.
+A pergunta certa é por comando: *existe uma política PERMISSIVE que autorize
+este INSERT/UPDATE/DELETE?* Medido a 21/08/2026:
+
+- **já negadas, nada a fazer:** `audit_logs`, `matches`, `tracking_points` —
+  nenhuma política permissiva de escrita;
+- **levam barreira** (feito em `20260828_bloqueio_tabelas_restantes.sql`):
+  `shipment_photos`, `documents`, `tracking_events`, `locations`;
+- **não levam barreira, e porquê:** abaixo.
+
+### As que ficam sem barreira
+
+- **`users`** — `users_update_self_or_admin` é `(id = current_user_id()) OR
+  is_platform_admin()`. Uma conta suspensa tem de poder editar o próprio perfil,
+  nem que seja para corrigir dados e pedir revisão. Decisão fechada.
+
+- **`verification_audit_log`** — `verification_audit_log_admin_only` é
+  `is_platform_admin()`, sem mais alternativas. Um utilizador comum suspenso já
+  não escreve. Além disso é trilha de auditoria: travá-la impediria registar a
+  própria decisão administrativa. Decisão fechada.
+
+- **`verification_requirements`** — `verification_requirements_admin_write` é
+  `is_platform_admin()`. Tabela de configuração. Decisão fechada.
+
+- **`notifications`** — ver §5.1.
+- **`tenants`** — ver §5.2.
+- **`payments`** e **`user_blocklist`** — ver §5.3 e §5.4.
+
+---
+
+### 5.1 `notifications` — a política é mais larga do que a justificação
+
+**O que estava escrito aqui:** «marcar como lida não é uma operação de negócio».
+
+**O facto:** `notifications_own_only` é `FOR ALL`, com
+`(user_id = current_user_id()) OR is_platform_admin()` em `USING` e em
+`WITH CHECK`. Cobre portanto:
+
+| Operação | Quem | Protegida por |
+|---|---|---|
+| SELECT | o dono da notificação, ou admin | a mesma política |
+| UPDATE | idem — é aqui que cabe marcar como lida | a mesma política |
+| INSERT | idem — o dono pode criar notificações a si próprio | a mesma política |
+| DELETE | idem — o dono pode apagar as suas | a mesma política |
+
+A justificação original cobria só o UPDATE. As outras três continuam sem
+justificação escrita.
+
+**O que se sabe:** a RLS garante que ninguém toca nas notificações de outra
+pessoa — isso está provado e não é o que está em causa. O que a barreira
+`pode_operar()` mudaria é se uma conta **suspensa** pode continuar a marcar
+como lida, a criar e a apagar notificações suas.
+
+**Decisão em aberto:** *uma conta suspensa deve poder apagar as suas próprias
+notificações?* Apagar não afecta ninguém além do próprio, mas remove o rasto do
+que lhe foi comunicado — incluindo, possivelmente, o aviso da própria suspensão.
+Marcar como lida é inofensivo. Não é a mesma pergunta para as quatro operações,
+e por isso não fica decidida em bloco.
+
+---
+
+### 5.2 `tenants` — a justificação anterior era factualmente errada
+
+**O que estava escrito aqui:** que `tenants` estava «já restrita a admin ou a
+`service_role` por política».
+
+**Isso é falso.** A política real é
+
+```sql
+tenants_update_own_or_admin  UPDATE
+  USING      ((id = current_tenant_id()) OR is_platform_admin())
+  WITH CHECK ((id = current_tenant_id()) OR is_platform_admin())
+```
+
+Qualquer utilizador autenticado da empresa — não só um administrador dela, nem
+só um administrador de plataforma — pode alterar os dados do seu próprio tenant:
+nome, `slug`, `tax_id`, moeda, país, `is_active`. A decisão de não pôr barreira
+assentava numa premissa que não se verifica, portanto **não está fundamentada** e
+volta a estar em aberto.
+
+**Duas perguntas distintas, e nenhuma delas é minha:**
+
+1. *Um membro qualquer da empresa deve poder alterar os dados dela?* Hoje pode.
+   Se a resposta for não, a correcção não é uma barreira de conta bloqueada — é
+   apertar a própria `tenants_update_own_or_admin` a papéis de administração.
+2. *Uma conta suspensa deve poder alterar os dados da empresa?* Se a resposta
+   for não, então `tenants` leva `tenants_bloqueio_update`.
+
+São independentes: pode responder-se sim à primeira e não à segunda.
+
+**Estado:** nada alterado. Sem barreira, e agora sem justificação a fingir que
+há uma.
+
+---
+
+### 5.3 `payments` — analisado, decisão de produto pendente
+
+Medido a 21/08/2026, sem alterar nada:
+
+- `payments_insert_own_tenant` (INSERT) — `tenant_id = current_tenant_id() OR
+  is_platform_admin()`: um utilizador comum da empresa cria pagamentos;
+- `payments_update_platform_admin` (UPDATE) — só administrador de plataforma;
+- sem política de DELETE: apagar está negado.
+
+**Nenhuma função `SECURITY DEFINER` escreve em `payments`.** E `service_role`
+tem `BYPASSRLS = true`, ao contrário de `anon` e `authenticated`. Logo uma
+barreira RESTRICTIVE **não afectaria processos internos** — só o cliente.
+
+Tecnicamente a barreira no INSERT é segura. O que falta é a resposta de produto:
+**uma conta suspensa deve poder liquidar uma obrigação que já contraiu?**
+Travar protege contra movimentos de uma conta sob suspeita; não travar evita
+deixar um acordo em curso por pagar.
+
+---
+
+### 5.4 `user_blocklist` — analisado, recomendação: não pôr barreira
+
+Política real: `is_platform_admin() OR (blocked_by = current_user_id() AND
+tenant_id = current_tenant_id())`. Nenhuma função `SECURITY DEFINER` escreve na
+tabela.
+
+Dois factos medidos:
+
+1. A barreira seria **redundante** contra um utilizador comum suspenso — ele já
+   não escreve, por não ser administrador nem autor do bloqueio.
+2. A produção tem **um único administrador de plataforma activo**. Se essa conta
+   for bloqueada, `pode_operar()` passa a falso e ninguém desbloqueia pela
+   aplicação; restaria `service_role` ou acesso directo à base.
+
+Ganho nulo, risco concreto. **Recomendação: não criar a barreira.** Fica aqui
+registada para não voltar a ser levantada como omissão.
 
 ---
 
@@ -285,14 +415,20 @@ sombra deixa de funcionar.
 Fecha o **P0-1**, o **P1-1** e o **P1-5**. É o lote maior e o que mais precisa de
 ser lido com atenção, porque activar RLS sem política permissiva tranca a tabela.
 
-### Lote 3 — barreiras de conta bloqueada
+### Lote 3 — barreiras de conta bloqueada — **feito**
 
 ```
-20260827_bloqueio_tabelas_restantes.sql
-  · shipment_photos, documents, tracking_events, tracking_points, matches
+20260828_bloqueio_tabelas_restantes.sql
+  · shipment_photos   INSERT, UPDATE, DELETE
+  · documents         INSERT, UPDATE, DELETE
+  · tracking_events   INSERT
+  · locations         INSERT
 ```
 
-Fecha o **P1-2** e o **P1-3**. Pequeno e independente.
+Fecha o **P1-2** e o **P1-3**. `tracking_points` e `matches` estavam na lista
+original e saíram: não têm política permissiva de escrita, portanto já negavam.
+`locations` entrou pela mesma medição. Provado com 17 sondas, conta activa e
+conta suspensa, 0 inconclusivas.
 
 ### Lote 4 — depois da decisão do marketplace
 
@@ -339,9 +475,11 @@ reverter as duas coisas.
 sem listas de excepções, e falha quando não consegue ligar-se — um vigia que não
 olhou não pode dizer que está tudo bem.
 
-Hoje falha quatro regras, com 9 + 2 + 15 + 13 ocorrências. É o retrato fiel do
-que este documento especifica para correcção. Fica **fora** da cadeia `npm test`
-até o Lote 2 entrar, para não esconder o resto do que está verde.
+Depois dos Lotes 2 e 3, falha **uma** regra — a cobertura de barreira de conta
+bloqueada, com 16 combinações tabela+comando em 7 tabelas, todas decididas ou
+em aberto em §5. As outras seis passam. Fica **fora** da cadeia `npm test`
+enquanto essa regra depender de decisões por tomar, para não esconder o resto do
+que está verde.
 
 **Uma incoerência que fica em aberto para si decidir:** `test:reconstruction` e
 `test:rls` saem com 0 quando não encontram base de dados; este sai com 1. A
